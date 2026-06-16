@@ -1,0 +1,59 @@
+{
+  "stores": [
+    {
+      "id": "STR-001",
+      "name": "Sainsbury's Holborn",
+      "address": "1 Kingsway, London, WC2B 6XF",
+      "phone": "020 7831 1000",
+      "hours": {
+        "monday": "07:00–23:00",
+        "tuesday": "07:00–23:00",
+        "wednesday": "07:00–23:00",
+        "thursday": "07:00–23:00",
+        "friday": "07:00–23:00",
+        "saturday": "08:00–22:00",
+        "sunday": "11:00–17:00"
+      },
+      "services": ["Click & Collect", "Pharmacy", "ATM", "Café", "Photo Booth"],
+      "click_and_collect_cutoff": "23:00 previous day",
+      "nearest_tube": "Holborn (Central/Piccadilly)"
+    },
+    {
+      "id": "STR-002",
+      "name": "Sainsbury's Islington",
+      "address": "2 Tolpuddle Street, London, N1 0XT",
+      "phone": "020 7278 4400",
+      "hours": {
+        "monday": "06:00–00:00",
+        "tuesday": "06:00–00:00",
+        "wednesday": "06:00–00:00",
+        "thursday": "06:00–00:00",
+        "friday": "06:00–00:00",
+        "saturday": "06:00–00:00",
+        "sunday": "10:00–16:00"
+      },
+      "services": ["Click & Collect", "ATM", "Self-Checkout"],
+      "click_and_collect_cutoff": "22:00 previous day",
+      "nearest_tube": "Angel (Northern)"
+    }
+  ],
+  "delivery_zones": ["EC1", "EC2", "EC3", "EC4", "WC1", "WC2", "N1", "SE1"],
+  "delivery_slots": {
+    "same_day_cutoff": "12:00",
+    "next_day_cutoff": "23:59",
+    "minimum_order": 25.00,
+    "delivery_fee": {
+      "under_40": 3.50,
+      "over_40": 1.00,
+      "over_100": 0.00
+    }
+  },
+  "policies": {
+    "refund_window_days": 14,
+    "refund_methods": ["Original payment method", "Nectar points", "Store credit"],
+    "click_collect_hold_hours": 72,
+    "damaged_goods": "Immediate refund or replacement offered within 48 hours of delivery",
+    "missing_items": "Report within 24 hours for full refund or re-delivery",
+    "substitutions": "Customers may reject substitutions at door or within app within 2 hours of delivery"
+  }
+}

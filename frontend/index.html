@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sainsbury's AI Assistant</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f97316'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-size='18'>✦</text></svg>"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">✦</div>
+        <div>
+          <div class="brand-name">Sainsbury's</div>
+          <div class="brand-sub">AI Assistant</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="customer-card">
+      <div class="customer-avatar" id="customerInitials">JT</div>
+      <div class="customer-name" id="customerName">Jamie Thornton</div>
+      <div class="customer-id" id="customerId">CUST-00421</div>
+      <span class="loyalty-badge" id="loyaltyBadge">⭐ Gold · 3,240 pts</span>
+    </div>
+
+    <div class="quick-nav">
+      <div class="nav-label">Quick Actions</div>
+
+      <button class="nav-btn" data-prompt="What are my recent orders?">
+        <span class="nav-icon">📦</span> My Orders
+      </button>
+      <button class="nav-btn" data-prompt="What is the status of my refund for order ORD-97830?">
+        <span class="nav-icon">↩️</span> Refund Status
+      </button>
+      <button class="nav-btn" data-prompt="Where is my delivery for order ORD-99102 right now?">
+        <span class="nav-icon">🚚</span> Track Delivery
+      </button>
+      <button class="nav-btn" data-prompt="What are the opening hours of the Holborn store?">
+        <span class="nav-icon">🏪</span> Store Info
+      </button>
+      <button class="nav-btn" data-prompt="Tell me about your returns and refund policy.">
+        <span class="nav-icon">📋</span> Policies
+      </button>
+
+      <div class="nav-label" style="margin-top:20px">My Orders</div>
+    </div>
+
+    <div class="order-pills" id="orderPills"></div>
+  </aside>
+
+  <!-- ── Chat Area ── -->
+  <main class="chat-area">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div>
+        <div class="topbar-title">AI Assistant</div>
+        <div class="topbar-subtitle">Powered by Azure AI Foundry · GPT-4o</div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-dot">
+          <div class="dot"></div>
+          Online
+        </div>
+      </div>
+    </header>
+
+    <!-- Error banner -->
+    <div class="error-banner" id="errorBanner"></div>
+
+    <!-- Messages -->
+    <div class="messages-container" id="messages">
+
+      <!-- Welcome card -->
+      <div class="welcome-card" id="welcomeCard">
+        <h2>Hello, Jamie 👋</h2>
+        <p>
+          I can help you track orders, check refunds, follow your delivery,
+          and answer questions about our stores. What can I do for you today?
+        </p>
+        <div class="suggestion-chips">
+          <button class="chip" data-prompt="Where is my order ORD-99102?">📦 Track my delivery</button>
+          <button class="chip" data-prompt="What is the refund status for order ORD-97830?">↩️ Refund update</button>
+          <button class="chip" data-prompt="Is the Holborn Sainsbury's open now?">🏪 Store hours</button>
+          <button class="chip" data-prompt="My cheese in order ORD-97830 was mouldy. What can I do?">⚠️ Damaged item</button>
+          <button class="chip" data-prompt="How many Nectar points do I have?">⭐ My Nectar points</button>
+          <button class="chip" data-prompt="Can I change my delivery slot for ORD-99102?">🕐 Change slot</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar">
+      <div class="input-wrapper">
+        <textarea
+          id="chatInput"
+          class="chat-input"
+          placeholder="Ask about orders, refunds, deliveries, stores…"
+          rows="1"
+          aria-label="Type your message"
+        ></textarea>
+        <div class="input-actions">
+          <button
+            id="voiceBtn"
+            class="icon-btn"
+            title="Voice input"
+            aria-label="Voice input"
+          >🎙</button>
+          <button
+            id="sendBtn"
+            class="send-btn"
+            title="Send message"
+            aria-label="Send"
+            disabled
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="input-hint">Press Enter to send · Shift+Enter for new line · 🎙 for voice</div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+{
+  "customer": {
+    "id": "CUST-00421",
+    "name": "Jamie Thornton",
+    "email": "jamie.thornton@example.com",
+    "phone": "+44 7700 900421",
+    "loyalty_tier": "Gold",
+    "loyalty_points": 3240,
+    "registered_since": "2021-03-14",
+    "default_address": {
+      "line1": "42 Maple Street",
+      "city": "London",
+      "postcode": "EC1A 1BB",
+      "country": "UK"
+    }
+  },
+  "orders": [
+    {
+      "order_id": "ORD-98741",
+      "date": "2025-06-10",
+      "status": "delivered",
+      "items": [
+        { "name": "Organic Whole Milk 2L", "qty": 2, "price": 1.89 },
+        { "name": "Sourdough Bread 800g", "qty": 1, "price": 2.25 },
+        { "name": "Free Range Eggs 12pk", "qty": 1, "price": 3.50 }
+      ],
+      "total": 9.53,
+      "payment_method": "Visa ending 4821",
+      "delivery": {
+        "method": "Home Delivery",
+        "slot": "2025-06-10 09:00–11:00",
+        "delivered_at": "2025-06-10 10:23",
+        "driver": "Raj P.",
+        "proof_of_delivery": "Left at front door – photo taken"
+      },
+      "refund": null
+    },
+    {
+      "order_id": "ORD-99102",
+      "date": "2025-06-13",
+      "status": "in_transit",
+      "items": [
+        { "name": "Salmon Fillets 400g", "qty": 1, "price": 5.50 },
+        { "name": "Baby Spinach 200g", "qty": 2, "price": 1.40 },
+        { "name": "Olive Oil Extra Virgin 500ml", "qty": 1, "price": 4.75 },
+        { "name": "Greek Yoghurt 500g", "qty": 1, "price": 2.10 }
+      ],
+      "total": 15.15,
+      "payment_method": "Visa ending 4821",
+      "delivery": {
+        "method": "Home Delivery",
+        "slot": "2025-06-16 14:00–16:00",
+        "delivered_at": null,
+        "driver": "Maria S.",
+        "current_stop": 4,
+        "total_stops": 9,
+        "eta": "2025-06-16 14:45",
+        "live_tracking_url": "#live-map"
+      },
+      "refund": null
+    },
+    {
+      "order_id": "ORD-97830",
+      "date": "2025-06-02",
+      "status": "refund_processing",
+      "items": [
+        { "name": "Cheddar Cheese 400g", "qty": 1, "price": 3.20 },
+        { "name": "Pasta Fusilli 500g", "qty": 3, "price": 1.10 },
+        { "name": "Tomato Passata 690g", "qty": 2, "price": 1.30 }
+      ],
+      "total": 10.30,
+      "payment_method": "Visa ending 4821",
+      "delivery": {
+        "method": "Click & Collect",
+        "store": "Sainsbury's Holborn",
+        "collected_at": "2025-06-02 16:45"
+      },
+      "refund": {
+        "reason": "Cheddar Cheese was mouldy on arrival",
+        "requested_on": "2025-06-03",
+        "amount": 3.20,
+        "status": "processing",
+        "method": "Original payment method",
+        "expected_by": "2025-06-17",
+        "reference": "REF-20441"
+      }
+    },
+    {
+      "order_id": "ORD-96210",
+      "date": "2025-05-28",
+      "status": "refund_completed",
+      "items": [
+        { "name": "Orange Juice 1.5L", "qty": 2, "price": 2.50 },
+        { "name": "Croissants 4pk", "qty": 1, "price": 2.00 }
+      ],
+      "total": 7.00,
+      "payment_method": "Visa ending 4821",
+      "delivery": {
+        "method": "Home Delivery",
+        "slot": "2025-05-28 07:00–09:00",
+        "delivered_at": "2025-05-28 08:11"
+      },
+      "refund": {
+        "reason": "Orange juice delivered past use-by date",
+        "requested_on": "2025-05-29",
+        "amount": 5.00,
+        "status": "completed",
+        "method": "Nectar points",
+        "completed_on": "2025-06-01",
+        "reference": "REF-19987"
+      }
+    }
+  ]
+}
