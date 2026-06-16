@@ -59,19 +59,48 @@ cp .env.example .env
 Open `.env` and fill in your values (see section below for where to find each one):
 
 ```env
-AZURE_AI_FOUNDRY_API_KEY=your_api_key_here
-AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://retail-ai-poc-resource.services.ai.azure.com/api/projects/your-project-name
-AZURE_OPENAI_ENDPOINT=https://retail-ai-poc-resource.openai.azure.com/openai/v1
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure AI Foundry – API Key authentication
+# Copy from AI Foundry Portal → Project → Overview → API key
+# ─────────────────────────────────────────────────────────────────────────────
+AZURE_AI_FOUNDRY_API_KEY=api key
+
+# Project endpoint – from AI Foundry Portal → Project → Overview → Project endpoint
+# e.g. https://retail-ai-poc-resource.services.ai.azure.com/api/projects/retail-ai-poc
+AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://retail-ai-poc-resource.services.ai.azure.com/api/projects/retail-ai-poc
+
+# Azure OpenAI endpoint – from AI Foundry Portal → Project → Overview → Azure OpenAI endpoint
+# e.g. https://retail-ai-poc-resource.openai.azure.com/openai/v1
+AZURE_OPENAI_ENDPOINT=https://retail-ai-poc-resource.openai.azure.com/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure AI Foundry – GPT-4o deployment name
+# Must match the deployment name in your Foundry project's model deployments
+# ─────────────────────────────────────────────────────────────────────────────
 AZURE_AI_FOUNDRY_DEPLOYMENT_NAME=gpt-4o
 
-# Optional – leave blank to use GPT-4o direct fallback
-AZURE_AGENT_ORDER_ID=
-AZURE_AGENT_REFUND_ID=
-AZURE_AGENT_DELIVERY_ID=
-AZURE_AGENT_STORE_ID=
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure AI Foundry – Pre-created Agent IDs (optional)
+# Create agents in AI Foundry Studio → Agents → + New agent
+# then paste their IDs here. Leave blank to use GPT-4o direct fallback.
+# ─────────────────────────────────────────────────────────────────────────────
+AZURE_AGENT_ORDER_ID=515677ca-a167-45c0-a25b-d2d1d3eb033c
+AZURE_AGENT_REFUND_ID=89f2e3c1-e0eb-4e4d-a827-7d54d398bb36
+AZURE_AGENT_DELIVERY_ID=e51fc1d1-8721-4a42-ab8b-22d178f2db61
+AZURE_AGENT_STORE_ID=97d080c4-ce19-416e-ad6b-7f182c85eab7
 
-AZURE_SPEECH_KEY=your_speech_key
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure Communication Services – Speech (for voice transcription)
+# Azure Portal → Speech resource → Keys and Endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+AZURE_SPEECH_KEY=your_azure_speech_key_here
 AZURE_SPEECH_REGION=eastus
+
+# ─────────────────────────────────────────────────────────────────────────────
+# App settings
+# ─────────────────────────────────────────────────────────────────────────────
+CORS_ORIGIN=*
+
 ```
 
 ### 3. Run
