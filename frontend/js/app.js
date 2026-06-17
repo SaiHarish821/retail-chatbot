@@ -7,10 +7,16 @@ const API_BASE = window.location.origin;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let conversationHistory = [];
-let mediaRecorder = null;
-let audioChunks = [];
 let isRecording = false;
 let isThinking = false;
+let audioContext = null;
+let scriptProcessor = null;
+let micSource = null;
+let micStream = null;
+let recordBuffer = [];
+let silenceTimer = null;
+const SILENCE_THRESHOLD = 0.015;
+const SILENCE_DURATION = 5000;
 
 // ── Customer data (mirrored for sidebar UX, not used for logic) ─────────────
 const CUSTOMER = {
@@ -268,39 +274,127 @@ async function toggleRecording() {
 async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-
-    mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data);
+    micStream = stream;
+    
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    micSource = audioContext.createMediaStreamSource(stream);
+    
+    // Silence detection analyser
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    micSource.connect(analyser);
+    
+    // ScriptProcessor to capture raw PCM
+    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+    recordBuffer = [];
+    
+    scriptProcessor.onaudioprocess = (e) => {
+      if (!isRecording) return;
+      const channelData = e.inputBuffer.getChannelData(0);
+      recordBuffer.push(new Float32Array(channelData));
     };
-    mediaRecorder.onstop = handleRecordingStop;
-    mediaRecorder.start(100);
-
+    
+    micSource.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+    
     isRecording = true;
     voiceBtn.classList.add("recording");
     voiceBtn.title = "Stop recording";
-    showToast("🎙 Recording… tap again to stop");
-
+    showToast("🎙 Recording… speak now");
+    
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    function checkSilence() {
+      if (!isRecording) return;
+      
+      analyser.getByteTimeDomainData(dataArray);
+      
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const floatVal = (dataArray[i] - 128) / 128;
+        sum += floatVal * floatVal;
+      }
+      const rms = Math.sqrt(sum / bufferLength);
+      
+      if (rms < SILENCE_THRESHOLD) {
+        if (!silenceTimer) {
+          silenceTimer = setTimeout(() => {
+            console.log("Auto-stopping recording due to 5 seconds of silence");
+            stopRecording();
+            showToast("✓ Auto-stopped (silence detected)");
+          }, SILENCE_DURATION);
+        }
+      } else {
+        if (silenceTimer) {
+          clearTimeout(silenceTimer);
+          silenceTimer = null;
+        }
+      }
+      
+      requestAnimationFrame(checkSilence);
+    }
+    
+    requestAnimationFrame(checkSilence);
+    
   } catch (err) {
-    showError("Microphone access denied. Enable it in browser settings.");
+    console.error(err);
+    showError("Microphone access denied or error starting recording.");
   }
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
-  }
+  if (!isRecording) return;
   isRecording = false;
+  
+  if (silenceTimer) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+  
+  if (scriptProcessor) {
+    scriptProcessor.disconnect();
+    scriptProcessor = null;
+  }
+  
+  if (micSource) {
+    micSource.disconnect();
+    micSource = null;
+  }
+  
+  if (audioContext) {
+    audioContext.close();
+  }
+  
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+  }
+  
   voiceBtn.classList.remove("recording");
   voiceBtn.title = "Voice input";
+  
+  handleRecordingStop();
 }
 
 async function handleRecordingStop() {
-  if (audioChunks.length === 0) return;
+  if (recordBuffer.length === 0) return;
 
-  const blob = new Blob(audioChunks, { type: "audio/wav" });
+  // Merge float buffers
+  let totalLength = 0;
+  for (let i = 0; i < recordBuffer.length; i++) {
+    totalLength += recordBuffer[i].length;
+  }
+  const mergedSamples = mergeBuffers(recordBuffer, totalLength);
+
+  // Downsample to 16kHz
+  const sampleRate = audioContext.sampleRate;
+  const targetSampleRate = 16000;
+  const downsampledSamples = downsampleBuffer(mergedSamples, sampleRate, targetSampleRate);
+
+  // Encode to mono 16-bit PCM WAV
+  const blob = encodeWAV(downsampledSamples, targetSampleRate);
   const formData = new FormData();
   formData.append("audio", blob, "voice.wav");
 
@@ -326,6 +420,76 @@ async function handleRecordingStop() {
     }
   } catch (err) {
     showError("Voice transcription failed: " + err.message);
+  }
+}
+
+// ── WAV helper functions ──────────────────────────────────────────────────────
+function mergeBuffers(channelBuffer, recordingLength) {
+  const result = new Float32Array(recordingLength);
+  let offset = 0;
+  for (let i = 0; i < channelBuffer.length; i++) {
+    result.set(channelBuffer[i], offset);
+    offset += channelBuffer[i].length;
+  }
+  return result;
+}
+
+function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+  if (outSampleRate === sampleRate) {
+    return buffer;
+  }
+  const sampleRateRatio = sampleRate / outSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+    let accum = 0, count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+      accum += buffer[i];
+      count++;
+    }
+    result[offsetResult] = accum / count;
+    offsetResult++;
+    offsetBuffer = nextOffsetBuffer;
+  }
+  return result;
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  floatTo16BitPCM(view, 44, samples);
+
+  return new Blob([view.buffer], { type: 'audio/wav' });
+}
+
+function floatTo16BitPCM(output, offset, input) {
+  for (let i = 0; i < input.length; i++, offset += 2) {
+    let s = Math.max(-1, Math.min(1, input[i]));
+    output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
   }
 }
 

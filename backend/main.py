@@ -117,4 +117,6 @@ async def voice_transcribe(audio: UploadFile = File(...)):
         Path(tmp_path).unlink(missing_ok=True)
         return TranscribeResponse(transcript=transcript)
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
