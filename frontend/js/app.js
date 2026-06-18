@@ -18,20 +18,9 @@ let silenceTimer = null;
 const SILENCE_THRESHOLD = 0.015;
 const SILENCE_DURATION = 5000;
 
-// ── Customer data (mirrored for sidebar UX, not used for logic) ─────────────
-const CUSTOMER = {
-  name: "Jamie Thornton",
-  id: "CUST-00421",
-  initials: "JT",
-  loyalty: "Gold · 3,240 pts",
-};
-
-const ORDERS = [
-  { id: "ORD-98741", status: "delivered" },
-  { id: "ORD-99102", status: "in_transit" },
-  { id: "ORD-97830", status: "refund_processing" },
-  { id: "ORD-96210", status: "refund_completed" },
-];
+// ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
+let customer = null;
+let orders = [];
 
 const STATUS_LABELS = {
   delivered: "Delivered",
@@ -50,33 +39,69 @@ const toastEl       = document.getElementById("toast");
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-  renderSidebar();
+  fetchCustomerData();
   bindEvents();
   chatInput.focus();
 });
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 function renderSidebar() {
-  document.getElementById("customerName").textContent = CUSTOMER.name;
-  document.getElementById("customerId").textContent = CUSTOMER.id;
-  document.getElementById("customerInitials").textContent = CUSTOMER.initials;
-  document.getElementById("loyaltyBadge").textContent = "⭐ " + CUSTOMER.loyalty;
+  if (!customer) return;
+
+  const initials = customer.name
+    ? customer.name.split(" ").map(n => n[0]).join("").toUpperCase()
+    : "";
+
+  document.getElementById("customerName").textContent = customer.name;
+  document.getElementById("customerId").textContent = customer.id;
+  document.getElementById("customerInitials").textContent = initials;
+  
+  const loyaltyBadgeText = `⭐ ${customer.loyalty_tier} · ${customer.loyalty_points.toLocaleString()} pts`;
+  document.getElementById("loyaltyBadge").textContent = loyaltyBadgeText;
+
+  if (customer.default_address) {
+    const addrText = `${customer.default_address.line1}, ${customer.default_address.city}`;
+    document.getElementById("customerAddressText").textContent = addrText;
+  }
 
   const pillsEl = document.getElementById("orderPills");
-  ORDERS.forEach(order => {
+  pillsEl.innerHTML = "";
+  orders.forEach(order => {
     const pill = document.createElement("div");
     pill.className = "order-pill";
     pill.innerHTML = `
-      <span class="order-pill-id">${order.id}</span>
+      <span class="order-pill-id">${order.order_id}</span>
       <span class="order-pill-status status-${order.status}">
-        ${STATUS_LABELS[order.status]}
+        ${STATUS_LABELS[order.status] || order.status}
       </span>
     `;
     pill.addEventListener("click", () => {
-      sendMessage(`What is the status of order ${order.id}?`);
+      sendMessage(`What is the status of order ${order.order_id}?`);
     });
     pillsEl.appendChild(pill);
   });
+}
+
+// ── Fetch dynamic customer data ──────────────────────────────────────────────
+async function fetchCustomerData() {
+  try {
+    const res = await fetch(`${API_BASE}/customer`);
+    if (!res.ok) throw new Error(`Failed to fetch customer data: ${res.status}`);
+    const data = await res.json();
+    customer = data.customer;
+    orders = data.orders || [];
+    
+    // Update Welcome Card text with customer's first name
+    const welcomeHeader = document.querySelector("#welcomeCard h2");
+    if (welcomeHeader && customer.name) {
+      const firstName = customer.name.split(" ")[0];
+      welcomeHeader.textContent = `Hello, ${firstName} 👋`;
+    }
+    
+    renderSidebar();
+  } catch (err) {
+    console.error("Error fetching customer data:", err);
+  }
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
@@ -160,6 +185,9 @@ async function sendMessage(text) {
     removeTyping(typingId);
     appendAIMessage(data.reply, data.intent);
     conversationHistory.push({ role: "assistant", content: data.reply });
+    
+    // Refresh customer and orders in UI in case the agent executed tool updates
+    await fetchCustomerData();
 
   } catch (err) {
     removeTyping(typingId);
@@ -176,10 +204,13 @@ async function sendMessage(text) {
 
 // ── Render messages ──────────────────────────────────────────────────────────
 function appendUserMessage(text) {
+  const initials = customer && customer.name
+    ? customer.name.split(" ").map(n => n[0]).join("").toUpperCase()
+    : "JT";
   const div = document.createElement("div");
   div.className = "message user-message";
   div.innerHTML = `
-    <div class="message-avatar user-avatar">JT</div>
+    <div class="message-avatar user-avatar">${initials}</div>
     <div>
       <div class="message-bubble user-bubble">${escapeHtml(text)}</div>
       <div class="message-meta">${now()}</div>

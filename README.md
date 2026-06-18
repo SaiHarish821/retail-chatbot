@@ -50,6 +50,11 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+> [!IMPORTANT]
+> **Windows Users:** If you run the application and get a `FileNotFoundError` or DLL load error for `Microsoft.CognitiveServices.Speech.core.dll` when using speech features, it is because your machine is missing the Visual C++ runtime. 
+> To resolve this, download and install the **[Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)**, then restart your terminal or computer.
+
+
 ### 2. Configure environment
 
 ```bash

@@ -30,7 +30,14 @@
       <div class="customer-avatar" id="customerInitials">JT</div>
       <div class="customer-name" id="customerName">Jamie Thornton</div>
       <div class="customer-id" id="customerId">CUST-00421</div>
-      <span class="loyalty-badge" id="loyaltyBadge">⭐ Gold · 3,240 pts</span>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div>
+          <span class="loyalty-badge" id="loyaltyBadge">⭐ Gold · 3,240 pts</span>
+        </div>
+        <div id="customerAddress" style="font-size: 11px; color: rgba(255,255,255,0.75); border-top: 1px solid rgba(255,255,255,0.15); padding-top: 8px; display: flex; align-items: center; gap: 4px;">
+          <span>📍</span> <span id="customerAddressText">Loading address...</span>
+        </div>
+      </div>
     </div>
 
     <div class="quick-nav">
@@ -95,6 +102,7 @@
           <button class="chip" data-prompt="My cheese in order ORD-97830 was mouldy. What can I do?">⚠️ Damaged item</button>
           <button class="chip" data-prompt="How many Nectar points do I have?">⭐ My Nectar points</button>
           <button class="chip" data-prompt="Can I change my delivery slot for ORD-99102?">🕐 Change slot</button>
+          <button class="chip" data-prompt="Do you have sourdough bread in stock at Holborn?">🍞 Check stock</button>
         </div>
       </div>
 

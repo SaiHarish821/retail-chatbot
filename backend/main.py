@@ -39,17 +39,16 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 MOCK_DIR = Path(__file__).parent.parent / "mock_data"
 
-with open(MOCK_DIR / "customer.json") as f:
+with open(MOCK_DIR / "customer.json", encoding="utf-8") as f:
     CUSTOMER_DATA = json.load(f)
 
-with open(MOCK_DIR / "store.json") as f:
-    STORE_DATA = json.load(f)
+with open(MOCK_DIR / "inventory.json", encoding="utf-8") as f:
+    INVENTORY_DATA = json.load(f)
 
 # ─── Agent router (singleton) ─────────────────────────────────────────────
 
 agent_router = AgentRouter(
     customer_data=CUSTOMER_DATA,
-    store_data=STORE_DATA,
 )
 
 # ─── Request / Response models ─────────────────────────────────────────────
@@ -79,6 +78,32 @@ async def serve_frontend():
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "Retail AI Assistant"}
+
+
+@app.get("/customer")
+async def get_customer():
+    """
+    Reload and return the latest customer data from customer.json.
+    """
+    try:
+        with open(MOCK_DIR / "customer.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/inventory")
+async def get_inventory():
+    """
+    Reload and return the latest inventory data from inventory.json.
+    """
+    try:
+        with open(MOCK_DIR / "inventory.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/chat", response_model=ChatResponse)

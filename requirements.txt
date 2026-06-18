@@ -4,9 +4,12 @@ python-dotenv==1.0.1
 azure-ai-agents==1.1.0
 azure-core==1.32.0
 azure-identity==1.19.0
+# NOTE (Windows Users): If you get "FileNotFoundError: Could not find module Microsoft.CognitiveServices.Speech.core.dll",
+# you must install the Visual C++ Redistributable from: https://aka.ms/vs/17/release/vc_redist.x64.exe
 azure-cognitiveservices-speech==1.41.1
 openai==1.58.1
 httpx==0.28.1
 python-multipart==0.0.18
 aiofiles==24.1.0
 pip-system-certs
+

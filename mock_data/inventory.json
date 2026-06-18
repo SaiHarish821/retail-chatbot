@@ -1,0 +1,147 @@
+{
+  "inventory": [
+    {
+      "product_id": "PRD-001",
+      "name": "Organic Whole Milk 2L",
+      "price": 1.89,
+      "category": "Dairy",
+      "stock": {
+        "STR-001": 25,
+        "STR-002": 45
+      },
+      "aisle": "Aisle 4 (Chilled)"
+    },
+    {
+      "product_id": "PRD-002",
+      "name": "Sourdough Bread 800g",
+      "price": 2.25,
+      "category": "Bakery",
+      "stock": {
+        "STR-001": 12,
+        "STR-002": 0
+      },
+      "aisle": "Aisle 1 (Bakery)"
+    },
+    {
+      "product_id": "PRD-003",
+      "name": "Free Range Eggs 12pk",
+      "price": 3.50,
+      "category": "Dairy",
+      "stock": {
+        "STR-001": 18,
+        "STR-002": 30
+      },
+      "aisle": "Aisle 4 (Chilled)"
+    },
+    {
+      "product_id": "PRD-004",
+      "name": "Salmon Fillets 400g",
+      "price": 5.50,
+      "category": "Fresh Meat & Fish",
+      "stock": {
+        "STR-001": 8,
+        "STR-002": 15
+      },
+      "aisle": "Aisle 6 (Fish counter)"
+    },
+    {
+      "product_id": "PRD-005",
+      "name": "Baby Spinach 200g",
+      "price": 1.40,
+      "category": "Produce",
+      "stock": {
+        "STR-001": 22,
+        "STR-002": 40
+      },
+      "aisle": "Aisle 2 (Fruit & Veg)"
+    },
+    {
+      "product_id": "PRD-006",
+      "name": "Olive Oil Extra Virgin 500ml",
+      "price": 4.75,
+      "category": "Pantry",
+      "stock": {
+        "STR-001": 15,
+        "STR-002": 10
+      },
+      "aisle": "Aisle 8 (Oils & Condiments)"
+    },
+    {
+      "product_id": "PRD-007",
+      "name": "Greek Yoghurt 500g",
+      "price": 2.10,
+      "category": "Dairy",
+      "stock": {
+        "STR-001": 30,
+        "STR-002": 25
+      },
+      "aisle": "Aisle 4 (Chilled)"
+    },
+    {
+      "product_id": "PRD-008",
+      "name": "Cheddar Cheese 400g",
+      "price": 3.20,
+      "category": "Dairy",
+      "stock": {
+        "STR-001": 14,
+        "STR-002": 18
+      },
+      "aisle": "Aisle 4 (Chilled)"
+    },
+    {
+      "product_id": "PRD-009",
+      "name": "Pasta Fusilli 500g",
+      "price": 1.10,
+      "category": "Pantry",
+      "stock": {
+        "STR-001": 50,
+        "STR-002": 65
+      },
+      "aisle": "Aisle 9 (Pasta & Rice)"
+    },
+    {
+      "product_id": "PRD-010",
+      "name": "Tomato Passata 690g",
+      "price": 1.30,
+      "category": "Pantry",
+      "stock": {
+        "STR-001": 40,
+        "STR-002": 35
+      },
+      "aisle": "Aisle 9 (Pasta sauce)"
+    },
+    {
+      "product_id": "PRD-011",
+      "name": "Orange Juice 1.5L",
+      "price": 2.50,
+      "category": "Drinks",
+      "stock": {
+        "STR-001": 20,
+        "STR-002": 18
+      },
+      "aisle": "Aisle 5 (Juices & Drinks)"
+    },
+    {
+      "product_id": "PRD-012",
+      "name": "Croissants 4pk",
+      "price": 2.00,
+      "category": "Bakery",
+      "stock": {
+        "STR-001": 5,
+        "STR-002": 10
+      },
+      "aisle": "Aisle 1 (Bakery)"
+    },
+    {
+      "product_id": "PRD-013",
+      "name": "Avocados 4pk",
+      "price": 2.50,
+      "category": "Produce",
+      "stock": {
+        "STR-001": 0,
+        "STR-002": 0
+      },
+      "aisle": "Aisle 2 (Fruit & Veg)"
+    }
+  ]
+}
