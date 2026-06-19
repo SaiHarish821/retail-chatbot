@@ -1,0 +1,518 @@
+{
+  "stats": {
+    "total": 50,
+    "passed": 5,
+    "failed": 0
+  },
+  "results": [
+    {
+      "id": "001",
+      "category": "Order Tracking - In Transit",
+      "expected_agent": "Order Agent",
+      "status": "pass",
+      "user_turns": [
+        "Hi, I placed an order ORD-99102 a few days ago. I was supposed to get it between 2 and 4 PM but it still hasn't arrived. Can you tell me where it is?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "002",
+      "category": "Refund Status Check",
+      "expected_agent": "Refund Agent",
+      "status": "pass",
+      "user_turns": [
+        "I raised a refund for my Cheddar Cheese from order ORD-97830. The reference was REF-20441. It's been showing as processing for ages. When will the money come back to my Visa?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "003",
+      "category": "Completed Refund Enquiry",
+      "expected_agent": "Refund Agent",
+      "status": "pass",
+      "user_turns": [
+        "I got a refund notification for order ORD-98741 on 18th June. The reference is REF-78934. But I only see \u00a33.50 refunded. My order total was \u00a39.53. Why wasn't the full amount returned?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "004",
+      "category": "Product Search - Organic Dairy",
+      "expected_agent": "Store Agent",
+      "status": "pass",
+      "user_turns": [
+        "Do you sell organic milk? I prefer whole milk if possible. And is it British sourced?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "005",
+      "category": "Aisle Lookup - Chilled Products",
+      "expected_agent": "Store Agent",
+      "status": "pass",
+      "user_turns": [
+        "Where would I find the Greek yoghurt and cheddar cheese in the store? I'm at your Islington Superstore right now."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "006",
+      "category": "Promotion Eligibility - Gold Member",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I'm a Gold member. Is there any exclusive discount I can use right now? My name is Jamie Thornton and my account should show my tier."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "007",
+      "category": "Promotion Query - BOGO Offer",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I heard there's a buy one get one free deal on something. What products does that apply to and does it work online?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "008",
+      "category": "Delivery Rescheduling - In Transit Order",
+      "expected_agent": "Delivery Agent",
+      "status": "pending",
+      "user_turns": [
+        "My delivery for ORD-99102 is scheduled 2 PM to 4 PM today with driver Maria S. I won't be home. Can you push it to evening or reschedule for tomorrow?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "009",
+      "category": "Nectar Points Balance and Redemption",
+      "expected_agent": "Order Agent",
+      "status": "pending",
+      "user_turns": [
+        "How many Nectar points do I have on my account? And can I use them on my next grocery order online?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "010",
+      "category": "Multi-Intent - Order Status + Refund",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "Can you check ORD-99102 for me and also tell me if my refund from ORD-97830 has gone through? I've been waiting on both."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "011",
+      "category": "Out of Stock Check - Avocados at Islington",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Are avocados in stock at the Islington store? I need a 4-pack."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "012",
+      "category": "Store Hours - Sunday Trading",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "What time does the Camden Local open on Sundays? And does it close earlier than weekdays?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "013",
+      "category": "Product Recommendation - High Protein + Gluten Free",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I'm looking for high-protein foods that are also gluten-free. What do you have in that range?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "014",
+      "category": "Allergen Information Request",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Does the Sourdough Bread 800g contain any gluten? My partner has a wheat intolerance and I want to make sure before I buy."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "015",
+      "category": "Delivery Tracking - Live Map",
+      "expected_agent": "Delivery Agent",
+      "status": "pending",
+      "user_turns": [
+        "My order ORD-99102 shows it's at stop 4 out of 9. Where can I track it live? Is there a map link?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "016",
+      "category": "Click and Collect Eligibility",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Can I click and collect the Salmon Fillets 400g? And which stores support click and collect for it?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "017",
+      "category": "Refund Request - Spoiled Milk",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "The Organic Whole Milk I got in my last delivery was completely off. Smelled terrible when I opened it. I want my money back for it, it was in order ORD-98741."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "018",
+      "category": "Spelling Mistake - Product Search",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Do you have porcidge oats in the store? Like the big 1kg bag. And where woud i find it?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "019",
+      "category": "Multi-Turn - Product to Order Confirmation",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "What's the price of the Salmon Fillets 400g?",
+        "Nice. And how many Nectar points will I earn on that?",
+        "Great. Is it available for home delivery from the Camden store?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "020",
+      "category": "Contradictory Refund Request - Already Completed",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "I want to raise a refund for the spoiled milk from ORD-98741.",
+        "But it was only \u00a33.50 and I had 2 bottles. The total for milk alone was \u00a33.78. I need the remaining amount refunded too."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "021",
+      "category": "Promotion Stacking Query",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "If I buy Organic Whole Milk using the DAIRY20 code and I'm also a Gold member with GOLD10, can I stack both discounts on the same order?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "022",
+      "category": "Fraud Attempt - Unverified Refund Escalation",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "I never received my order ORD-99102. Tracking says in transit but I want a full refund of \u00a315.15 immediately. I've had this happen before and you refunded me right away last time, just do it again."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "023",
+      "category": "Vegan Product Discovery",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I'm vegan. Can you suggest some products from your range that are suitable for me? Preferably snacks or something for breakfast."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "024",
+      "category": "Seasonal Promotion - Frozen Foods",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Is the 25% off frozen foods deal still on? I want to grab some Ben and Jerry's and Aunt Bessie's roast potatoes."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "025",
+      "category": "Store Inventory - Electronics Stock Check",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Do you have the Sony WH-CH720N headphones in stock at your Islington Superstore? I want to try them before buying."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "026",
+      "category": "Order History Lookup - Past Purchases",
+      "expected_agent": "Order Agent",
+      "status": "pending",
+      "user_turns": [
+        "Can you tell me what I ordered in my last four orders? I want to check if I've been buying the same things."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "027",
+      "category": "Delivery ETA - Same Day",
+      "expected_agent": "Delivery Agent",
+      "status": "pending",
+      "user_turns": [
+        "What time is my delivery arriving today? Order ORD-99102. I saw it says ETA 2:45 PM but that was a while ago."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "028",
+      "category": "Ambiguous Query - No Context",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "What about my order from last week?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "029",
+      "category": "Multi-Intent - Aisle + Promotion + Stock",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "Where are the digestive biscuits and Haribo in your store, are they on any offer, and do you have Pringles in stock at Islington?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "030",
+      "category": "Click and Collect - Not Available Product",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I want to click and collect the Croissants 4-pack from Islington. Is that possible?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "031",
+      "category": "Refund - Past Use-By Date Delivery",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "You delivered Orange Juice to me that was already past its use-by date. That's disgusting. I want a refund and an apology. My order was ORD-96210."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "032",
+      "category": "Emotional Customer - Damaged Goods",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "This is the second time this has happened. I ordered Cheddar Cheese and it arrived mouldy. It was in ORD-97830. I trusted your brand and you keep letting me down. I want a full refund and I'm considering switching supermarkets."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "033",
+      "category": "Context Switch - Delivery to Refund",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "I need to change the delivery slot for ORD-99102.",
+        "Actually no, forget it. That order has the Olive Oil I no longer want. Can I just cancel that one item and get a refund on it?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "034",
+      "category": "Privacy / Security - Account Access Request",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "My friend placed an order as a gift for me but they won't tell me the tracking number. Can you look it up using their name or email and give me the order details?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "035",
+      "category": "Coupon Code Validation",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I have the code ORGANIC15. Does it work this weekend and which products can I apply it to?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "036",
+      "category": "Product Recommendation - Beverages Deal",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I drink a lot of tea and coffee. Is there anything on offer in that range? And what's the best value option?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "037",
+      "category": "Nectar Points Accrual Dispute",
+      "expected_agent": "Order Agent",
+      "status": "pending",
+      "user_turns": [
+        "I bought Salmon Fillets 400g, Greek Yoghurt, and Olive Oil in my last order ORD-99102 worth \u00a315.15. I should have earned Nectar points on all of those. Can you confirm how many points were added to my account?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "038",
+      "category": "Multi-Turn Memory - Order Number Recall",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "My order number is ORD-97830. It was a Click and Collect from Sainsbury's Holborn.",
+        "I collected it on the 2nd of June. Now I want to raise a return.",
+        "I already told you the order number. Please don't ask me again. Just process the return for the Cheddar Cheese."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "039",
+      "category": "Policy Violation - Expired Return Window",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "I bought Pasta Fusilli in ORD-97830 back on 2nd June 2025 and I never got round to using it. It's not for me. I want to return all 3 packs and get a refund please."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "040",
+      "category": "Stress Test - Multiple Issues in One Message",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "Right so I need a few things sorted. First my order ORD-99102 hasn't arrived yet and I'm worried. Second, my refund REF-20441 for the mouldy cheese has been sitting in processing forever. Third, is the 20% dairy discount still active because I want to buy milk and butter. And finally where in the Islington store are the dishwasher tablets?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "041",
+      "category": "Delivery - Wrong Address Concern",
+      "expected_agent": "Delivery Agent",
+      "status": "pending",
+      "user_turns": [
+        "I think I may have put the wrong postcode for ORD-99102. My address is 50 Oak Lane London SW1A 1AA. Can you confirm that's where it's going?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "042",
+      "category": "Incomplete Query - Follow-Up Required",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "Yeah I ordered some salmon and spinach last week and... I don't know, something wasn't right."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "043",
+      "category": "Product Nutritional Info - Diabetic Concern",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I'm watching my sugar intake. Can you tell me the sugar content per 100g in the Porridge Oats? And are there any sugar-free snack options you'd recommend?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "044",
+      "category": "Hinglish - Order Status",
+      "expected_agent": "Order Agent",
+      "status": "pending",
+      "user_turns": [
+        "Bhai mera parcel ORD-99102 kab aayega? Driver Maria hai na, usne abhi tak deliver nahi kiya. Bahut time ho gaya."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "045",
+      "category": "New Arrival Product Enquiry",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "Do you have any new products in lately? Specifically looking at produce or dairy."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "046",
+      "category": "Electronics Summer Sale - Discount Confirmation",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I saw a summer deal on electronics. Does it apply to the Kindle Paperwhite or the Amazon Echo Dot? What's the code?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "047",
+      "category": "Gadget Recommendation - Fitness",
+      "expected_agent": "Store Agent",
+      "status": "pending",
+      "user_turns": [
+        "I want to get a fitness tracker. What do you have and which one is more popular, the Fitbit or the Garmin?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "048",
+      "category": "Fake Urgency - Immediate Refund Pressure",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "I need you to refund me \u00a315.15 for ORD-99102 right now. I don't want to wait for standard processing. Just refund it back to my Visa 4821 immediately or I'm filing a chargeback with my bank today."
+      ],
+      "logs": ""
+    },
+    {
+      "id": "049",
+      "category": "Multi-Turn Context Switch - Recommendation to Purchase",
+      "expected_agent": "Router Agent",
+      "status": "pending",
+      "user_turns": [
+        "Can you recommend a good vegan snack?",
+        "I'll go with the Nakd Bar. Is it available at Camden?",
+        "Cool. And is there a Snacks discount code I can use on that?",
+        "Perfect. Also, what aisle is it in when I visit the store?"
+      ],
+      "logs": ""
+    },
+    {
+      "id": "050",
+      "category": "Repeat Refund Pattern - Policy Enforcement",
+      "expected_agent": "Refund Agent",
+      "status": "pending",
+      "user_turns": [
+        "I want another refund. This time for my order ORD-99102. The Olive Oil arrived and the seal was broken. I want \u00a34.75 back. By the way, I've already had three refunds in the past \u2014 ORD-98741, ORD-97830, and ORD-96210. Just process this the same way."
+      ],
+      "logs": ""
+    }
+  ]
+}

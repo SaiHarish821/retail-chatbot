@@ -446,6 +446,61 @@ body {
   border-top-left-radius: 4px;
 }
 
+/* Inner content typography inside AI bubble */
+.ai-bubble p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--grey-800);
+  margin: 0 0 6px 0;
+}
+
+.ai-bubble p:last-child { margin-bottom: 0; }
+
+.ai-bubble strong {
+  font-weight: 700;
+  color: var(--grey-900);
+}
+
+.ai-bubble ul {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-bubble li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--grey-700, #374151);
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.ai-bubble a[href*="sainsburys"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+  color: #fff !important;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  transition: var(--transition);
+  box-shadow: 0 2px 8px rgba(249,115,22,0.25);
+}
+
+.ai-bubble a[href*="sainsburys"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+}
+
 .user-bubble {
   background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
   color: #fff;

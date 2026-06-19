@@ -39,11 +39,12 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 MOCK_DIR = Path(__file__).parent.parent / "mock_data"
 
-with open(MOCK_DIR / "customer.json", encoding="utf-8") as f:
-    CUSTOMER_DATA = json.load(f)
+# Initialize and seed database
+from database import init_db, seed_db, load_db_customer_data
+init_db()
+seed_db()
 
-with open(MOCK_DIR / "inventory.json", encoding="utf-8") as f:
-    INVENTORY_DATA = json.load(f)
+CUSTOMER_DATA = load_db_customer_data()
 
 # ─── Agent router (singleton) ─────────────────────────────────────────────
 
@@ -62,6 +63,11 @@ class ChatResponse(BaseModel):
     reply: str
     intent: str
     sources: list[str] = []
+
+
+class SaveResultsRequest(BaseModel):
+    results: list[dict]
+    stats: dict
 
 
 class TranscribeResponse(BaseModel):
@@ -83,12 +89,10 @@ async def health():
 @app.get("/customer")
 async def get_customer():
     """
-    Reload and return the latest customer data from customer.json.
+    Reload and return the latest customer data from the SQLite database.
     """
     try:
-        with open(MOCK_DIR / "customer.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data
+        return load_db_customer_data()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -96,12 +100,11 @@ async def get_customer():
 @app.get("/inventory")
 async def get_inventory():
     """
-    Reload and return the latest inventory data from inventory.json.
+    Reload and return the latest inventory data from the SQLite database.
     """
     try:
-        with open(MOCK_DIR / "inventory.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data
+        from database import load_db_inventory_data
+        return load_db_inventory_data()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -122,6 +125,23 @@ async def chat(request: ChatRequest):
             intent=result["intent"],
             sources=result.get("sources", []),
         )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/save_results")
+async def save_results(request: SaveResultsRequest):
+    """
+    Save test runner results to a file for analysis.
+    """
+    try:
+        results_file = Path(__file__).parent.parent / "mock_data" / "test_results.json"
+        with open(results_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "stats": request.stats,
+                "results": request.results
+            }, f, indent=2)
+        return {"status": "success"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

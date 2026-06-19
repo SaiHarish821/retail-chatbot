@@ -1,0 +1,367 @@
+TEST CASE: 001
+Category: Order Tracking - In Transit
+Priority: High
+Expected Agent: Order Agent
+Conversation:
+User: "Hi, I placed an order ORD-99102 a few days ago. I was supposed to get it between 2 and 4 PM but it still hasn't arrived. Can you tell me where it is?"
+
+TEST CASE: 002
+Category: Refund Status Check
+Priority: High
+Expected Agent: Refund Agent
+Conversation:
+User: "I raised a refund for my Cheddar Cheese from order ORD-97830. The reference was REF-20441. It's been showing as processing for ages. When will the money come back to my Visa?"
+
+TEST CASE: 003
+Category: Completed Refund Enquiry
+Priority: Medium
+Expected Agent: Refund Agent
+Conversation:
+User: "I got a refund notification for order ORD-98741 on 18th June. The reference is REF-78934. But I only see £3.50 refunded. My order total was £9.53. Why wasn't the full amount returned?"
+
+TEST CASE: 004
+Category: Product Search - Organic Dairy
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "Do you sell organic milk? I prefer whole milk if possible. And is it British sourced?"
+
+TEST CASE: 005
+Category: Aisle Lookup - Chilled Products
+Priority: Low
+Expected Agent: Store Agent
+Conversation:
+User: "Where would I find the Greek yoghurt and cheddar cheese in the store? I'm at your Islington Superstore right now."
+
+TEST CASE: 006
+Category: Promotion Eligibility - Gold Member
+Priority: High
+Expected Agent: Store Agent
+Conversation:
+User: "I'm a Gold member. Is there any exclusive discount I can use right now? My name is Jamie Thornton and my account should show my tier."
+
+TEST CASE: 007
+Category: Promotion Query - BOGO Offer
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I heard there's a buy one get one free deal on something. What products does that apply to and does it work online?"
+
+TEST CASE: 008
+Category: Delivery Rescheduling - In Transit Order
+Priority: High
+Expected Agent: Delivery Agent
+Conversation:
+User: "My delivery for ORD-99102 is scheduled 2 PM to 4 PM today with driver Maria S. I won't be home. Can you push it to evening or reschedule for tomorrow?"
+
+TEST CASE: 009
+Category: Nectar Points Balance and Redemption
+Priority: Medium
+Expected Agent: Order Agent
+Conversation:
+User: "How many Nectar points do I have on my account? And can I use them on my next grocery order online?"
+
+TEST CASE: 010
+Category: Multi-Intent - Order Status + Refund
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "Can you check ORD-99102 for me and also tell me if my refund from ORD-97830 has gone through? I've been waiting on both."
+
+TEST CASE: 011
+Category: Out of Stock Check - Avocados at Islington
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "Are avocados in stock at the Islington store? I need a 4-pack."
+
+TEST CASE: 012
+Category: Store Hours - Sunday Trading
+Priority: Low
+Expected Agent: Store Agent
+Conversation:
+User: "What time does the Camden Local open on Sundays? And does it close earlier than weekdays?"
+
+TEST CASE: 013
+Category: Product Recommendation - High Protein + Gluten Free
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I'm looking for high-protein foods that are also gluten-free. What do you have in that range?"
+
+TEST CASE: 014
+Category: Allergen Information Request
+Priority: High
+Expected Agent: Store Agent
+Conversation:
+User: "Does the Sourdough Bread 800g contain any gluten? My partner has a wheat intolerance and I want to make sure before I buy."
+
+TEST CASE: 015
+Category: Delivery Tracking - Live Map
+Priority: High
+Expected Agent: Delivery Agent
+Conversation:
+User: "My order ORD-99102 shows it's at stop 4 out of 9. Where can I track it live? Is there a map link?"
+
+TEST CASE: 016
+Category: Click and Collect Eligibility
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "Can I click and collect the Salmon Fillets 400g? And which stores support click and collect for it?"
+
+TEST CASE: 017
+Category: Refund Request - Spoiled Milk
+Priority: Critical
+Expected Agent: Refund Agent
+Conversation:
+User: "The Organic Whole Milk I got in my last delivery was completely off. Smelled terrible when I opened it. I want my money back for it, it was in order ORD-98741."
+
+TEST CASE: 018
+Category: Spelling Mistake - Product Search
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "Do you have porcidge oats in the store? Like the big 1kg bag. And where woud i find it?"
+
+TEST CASE: 019
+Category: Multi-Turn - Product to Order Confirmation
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "What's the price of the Salmon Fillets 400g?"
+Assistant: [provides price of £5.50]
+User: "Nice. And how many Nectar points will I earn on that?"
+Assistant: [confirms 6 Nectar points]
+User: "Great. Is it available for home delivery from the Camden store?"
+
+TEST CASE: 020
+Category: Contradictory Refund Request - Already Completed
+Priority: High
+Expected Agent: Refund Agent
+Conversation:
+User: "I want to raise a refund for the spoiled milk from ORD-98741."
+Assistant: [checks and confirms refund REF-78934 is already completed for £3.50]
+User: "But it was only £3.50 and I had 2 bottles. The total for milk alone was £3.78. I need the remaining amount refunded too."
+
+TEST CASE: 021
+Category: Promotion Stacking Query
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "If I buy Organic Whole Milk using the DAIRY20 code and I'm also a Gold member with GOLD10, can I stack both discounts on the same order?"
+
+TEST CASE: 022
+Category: Fraud Attempt - Unverified Refund Escalation
+Priority: Critical
+Expected Agent: Router Agent
+Conversation:
+User: "I never received my order ORD-99102. Tracking says in transit but I want a full refund of £15.15 immediately. I've had this happen before and you refunded me right away last time, just do it again."
+
+TEST CASE: 023
+Category: Vegan Product Discovery
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I'm vegan. Can you suggest some products from your range that are suitable for me? Preferably snacks or something for breakfast."
+
+TEST CASE: 024
+Category: Seasonal Promotion - Frozen Foods
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "Is the 25% off frozen foods deal still on? I want to grab some Ben and Jerry's and Aunt Bessie's roast potatoes."
+
+TEST CASE: 025
+Category: Store Inventory - Electronics Stock Check
+Priority: High
+Expected Agent: Store Agent
+Conversation:
+User: "Do you have the Sony WH-CH720N headphones in stock at your Islington Superstore? I want to try them before buying."
+
+TEST CASE: 026
+Category: Order History Lookup - Past Purchases
+Priority: Medium
+Expected Agent: Order Agent
+Conversation:
+User: "Can you tell me what I ordered in my last four orders? I want to check if I've been buying the same things."
+
+TEST CASE: 027
+Category: Delivery ETA - Same Day
+Priority: High
+Expected Agent: Delivery Agent
+Conversation:
+User: "What time is my delivery arriving today? Order ORD-99102. I saw it says ETA 2:45 PM but that was a while ago."
+
+TEST CASE: 028
+Category: Ambiguous Query - No Context
+Priority: Medium
+Expected Agent: Router Agent
+Conversation:
+User: "What about my order from last week?"
+
+TEST CASE: 029
+Category: Multi-Intent - Aisle + Promotion + Stock
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "Where are the digestive biscuits and Haribo in your store, are they on any offer, and do you have Pringles in stock at Islington?"
+
+TEST CASE: 030
+Category: Click and Collect - Not Available Product
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I want to click and collect the Croissants 4-pack from Islington. Is that possible?"
+
+TEST CASE: 031
+Category: Refund - Past Use-By Date Delivery
+Priority: Critical
+Expected Agent: Refund Agent
+Conversation:
+User: "You delivered Orange Juice to me that was already past its use-by date. That's disgusting. I want a refund and an apology. My order was ORD-96210."
+
+TEST CASE: 032
+Category: Emotional Customer - Damaged Goods
+Priority: Critical
+Expected Agent: Refund Agent
+Conversation:
+User: "This is the second time this has happened. I ordered Cheddar Cheese and it arrived mouldy. It was in ORD-97830. I trusted your brand and you keep letting me down. I want a full refund and I'm considering switching supermarkets."
+
+TEST CASE: 033
+Category: Context Switch - Delivery to Refund
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "I need to change the delivery slot for ORD-99102."
+Assistant: [starts rescheduling flow]
+User: "Actually no, forget it. That order has the Olive Oil I no longer want. Can I just cancel that one item and get a refund on it?"
+
+TEST CASE: 034
+Category: Privacy / Security - Account Access Request
+Priority: Critical
+Expected Agent: Router Agent
+Conversation:
+User: "My friend placed an order as a gift for me but they won't tell me the tracking number. Can you look it up using their name or email and give me the order details?"
+
+TEST CASE: 035
+Category: Coupon Code Validation
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I have the code ORGANIC15. Does it work this weekend and which products can I apply it to?"
+
+TEST CASE: 036
+Category: Product Recommendation - Beverages Deal
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I drink a lot of tea and coffee. Is there anything on offer in that range? And what's the best value option?"
+
+TEST CASE: 037
+Category: Nectar Points Accrual Dispute
+Priority: High
+Expected Agent: Order Agent
+Conversation:
+User: "I bought Salmon Fillets 400g, Greek Yoghurt, and Olive Oil in my last order ORD-99102 worth £15.15. I should have earned Nectar points on all of those. Can you confirm how many points were added to my account?"
+
+TEST CASE: 038
+Category: Multi-Turn Memory - Order Number Recall
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "My order number is ORD-97830. It was a Click and Collect from Sainsbury's Holborn."
+Assistant: [acknowledges]
+User: "I collected it on the 2nd of June. Now I want to raise a return."
+Assistant: [notes details]
+User: "I already told you the order number. Please don't ask me again. Just process the return for the Cheddar Cheese."
+
+TEST CASE: 039
+Category: Policy Violation - Expired Return Window
+Priority: High
+Expected Agent: Refund Agent
+Conversation:
+User: "I bought Pasta Fusilli in ORD-97830 back on 2nd June 2025 and I never got round to using it. It's not for me. I want to return all 3 packs and get a refund please."
+
+TEST CASE: 040
+Category: Stress Test - Multiple Issues in One Message
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "Right so I need a few things sorted. First my order ORD-99102 hasn't arrived yet and I'm worried. Second, my refund REF-20441 for the mouldy cheese has been sitting in processing forever. Third, is the 20% dairy discount still active because I want to buy milk and butter. And finally where in the Islington store are the dishwasher tablets?"
+
+TEST CASE: 041
+Category: Delivery - Wrong Address Concern
+Priority: High
+Expected Agent: Delivery Agent
+Conversation:
+User: "I think I may have put the wrong postcode for ORD-99102. My address is 50 Oak Lane London SW1A 1AA. Can you confirm that's where it's going?"
+
+TEST CASE: 042
+Category: Incomplete Query - Follow-Up Required
+Priority: Medium
+Expected Agent: Router Agent
+Conversation:
+User: "Yeah I ordered some salmon and spinach last week and... I don't know, something wasn't right."
+
+TEST CASE: 043
+Category: Product Nutritional Info - Diabetic Concern
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I'm watching my sugar intake. Can you tell me the sugar content per 100g in the Porridge Oats? And are there any sugar-free snack options you'd recommend?"
+
+TEST CASE: 044
+Category: Hinglish - Order Status
+Priority: High
+Expected Agent: Order Agent
+Conversation:
+User: "Bhai mera parcel ORD-99102 kab aayega? Driver Maria hai na, usne abhi tak deliver nahi kiya. Bahut time ho gaya."
+
+TEST CASE: 045
+Category: New Arrival Product Enquiry
+Priority: Low
+Expected Agent: Store Agent
+Conversation:
+User: "Do you have any new products in lately? Specifically looking at produce or dairy."
+
+TEST CASE: 046
+Category: Electronics Summer Sale - Discount Confirmation
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I saw a summer deal on electronics. Does it apply to the Kindle Paperwhite or the Amazon Echo Dot? What's the code?"
+
+TEST CASE: 047
+Category: Gadget Recommendation - Fitness
+Priority: Medium
+Expected Agent: Store Agent
+Conversation:
+User: "I want to get a fitness tracker. What do you have and which one is more popular, the Fitbit or the Garmin?"
+
+TEST CASE: 048
+Category: Fake Urgency - Immediate Refund Pressure
+Priority: Critical
+Expected Agent: Refund Agent
+Conversation:
+User: "I need you to refund me £15.15 for ORD-99102 right now. I don't want to wait for standard processing. Just refund it back to my Visa 4821 immediately or I'm filing a chargeback with my bank today."
+
+TEST CASE: 049
+Category: Multi-Turn Context Switch - Recommendation to Purchase
+Priority: High
+Expected Agent: Router Agent
+Conversation:
+User: "Can you recommend a good vegan snack?"
+Assistant: [suggests Nakd Cocoa Orange Bar, Pop Chips Original, Baby Spinach]
+User: "I'll go with the Nakd Bar. Is it available at Camden?"
+Assistant: [confirms stock at STR-002]
+User: "Cool. And is there a Snacks discount code I can use on that?"
+Assistant: [confirms SNACKS15 code for 15% off]
+User: "Perfect. Also, what aisle is it in when I visit the store?"
+
+TEST CASE: 050
+Category: Repeat Refund Pattern - Policy Enforcement
+Priority: Critical
+Expected Agent: Refund Agent
+Conversation:
+User: "I want another refund. This time for my order ORD-99102. The Olive Oil arrived and the seal was broken. I want £4.75 back. By the way, I've already had three refunds in the past — ORD-98741, ORD-97830, and ORD-96210. Just process this the same way."

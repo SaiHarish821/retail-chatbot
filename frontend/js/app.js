@@ -260,12 +260,60 @@ function removeTyping(id) {
 }
 
 function formatAIText(text) {
-  return escapeHtml(text)
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/`(.*?)`/g, "<code style='background:var(--orange-50);color:var(--orange-700);padding:1px 5px;border-radius:4px;font-size:0.9em'>$1</code>")
-    .replace(/\n/g, "<br>");
+  // 1. Escape HTML first
+  let safe = escapeHtml(text);
+
+  // 2. Strip stray markdown headers and horizontal rules
+  safe = safe.replace(/^#{1,3}\s+.*/gm, "");
+  safe = safe.replace(/^[-=]{3,}\s*$/gm, "");
+
+  // 3. Bold: **text** → <strong>
+  safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // 4. Italic: *text* → <em>
+  safe = safe.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+
+  // 5. Inline code: `text`
+  safe = safe.replace(/`(.*?)`/g, "<code style='background:rgba(249,115,22,0.12);color:#f97316;padding:1px 6px;border-radius:4px;font-size:0.88em;font-weight:600'>$1</code>");
+
+  // 6. Sainsbury's URL → branded clickable link
+  safe = safe.replace(
+    /https?:\/\/www\.sainsburys\.co\.uk\/[^\s<]*/g,
+    `<a href="https://www.sainsburys.co.uk/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:5px 12px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;letter-spacing:0.3px">🛒 Shop at Sainsbury's</a>`
+  );
+
+  // 7. Bullet lines: lines starting with • → styled list items
+  // Group consecutive bullet lines into a <ul>
+  const lines = safe.split(/\n/);
+  const result = [];
+  let inList = false;
+
+  for (let line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("•") || trimmed.startsWith("&bull;")) {
+      const content = trimmed.replace(/^[•&bull;]+\s*/, "");
+      if (!inList) {
+        result.push('<ul style="margin:6px 0 6px 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;">');
+        inList = true;
+      }
+      result.push(`<li style="display:flex;align-items:flex-start;gap:7px;"><span style="color:#f97316;font-size:0.7rem;margin-top:4px;flex-shrink:0">●</span><span>${content}</span></li>`);
+    } else {
+      if (inList) {
+        result.push("</ul>");
+        inList = false;
+      }
+      if (trimmed === "") {
+        result.push('<div style="height:6px"></div>');
+      } else {
+        result.push(`<p style="margin:0 0 6px 0;line-height:1.55">${trimmed}</p>`);
+      }
+    }
+  }
+  if (inList) result.push("</ul>");
+
+  return result.join("");
 }
+
 
 function escapeHtml(text) {
   const map = { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" };

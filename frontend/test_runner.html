@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sainsbury's Chatbot Test Suite</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --orange: #f97316;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .dashboard {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+    }
+
+    .iframe-container {
+      width: 480px;
+      display: flex;
+      flex-direction: column;
+      background: #1e293b;
+    }
+
+    iframe {
+      width: 100%;
+      flex: 1;
+      border: none;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 15px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .stat-val {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--orange);
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: var(--orange);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .test-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .test-card:hover {
+      background: rgba(30, 41, 59, 0.9);
+    }
+
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .test-id {
+      font-weight: 700;
+      color: var(--orange);
+    }
+
+    .test-badge {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .badge-pending { background: #475569; color: #cbd5e1; }
+    .badge-running { background: #eab308; color: #0f172a; }
+    .badge-pass { background: #15803d; color: #bbf7d0; }
+    .badge-fail { background: #991b1b; color: #fecaca; }
+
+    .test-query {
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      margin-bottom: 8px;
+    }
+
+    .test-details {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+
+    .error-log {
+      color: var(--red);
+      font-family: monospace;
+      margin-top: 5px;
+      white-space: pre-wrap;
+    }
+
+    .reply-log {
+      color: #38bdf8;
+      margin-top: 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      background: rgba(0,0,0,0.2);
+      padding: 8px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard">
+    <div class="header">
+      <div>
+        <h1 style="margin:0; font-size:1.8rem; color:var(--orange)">Sainsbury's Chatbot Test Suite</h1>
+        <div style="color:var(--text-muted); font-size:0.9rem; margin-top:4px">Live Browser UI Test Automation</div>
+      </div>
+      <div class="controls">
+        <button id="runAllBtn">Run All Tests</button>
+        <button id="runFailedBtn" disabled>Rerun Failed</button>
+        <button id="stopBtn" disabled style="background:#ef4444">Stop</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-val" id="statTotal">0</div>
+        <div class="stat-label">Total Tests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statPassed" style="color:var(--green)">0</div>
+        <div class="stat-label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statFailed" style="color:var(--red)">0</div>
+        <div class="stat-label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statPassRate">0%</div>
+        <div class="stat-label">Pass Rate</div>
+      </div>
+    </div>
+
+    <div class="test-list" id="testList">
+      <!-- Loaded dynamically -->
+    </div>
+  </div>
+
+  <div class="iframe-container">
+    <div style="padding: 10px; background:#0f172a; border-bottom:1px solid var(--border); font-size:0.85rem; color:var(--text-muted); font-weight:600">
+      LIVE WEB APPLICATION IFRAME
+    </div>
+    <iframe id="appFrame" src="/"></iframe>
+  </div>
+
+  <script>
+    let testCases = [];
+    let isRunning = false;
+    let stopRequested = false;
+    const failedTestIds = new Set();
+
+    const appFrame = document.getElementById("appFrame");
+
+    // Map categories/expected agents to lowercase intents
+    const AGENT_TO_INTENT = {
+      "store agent": "store",
+      "order agent": "order",
+      "refund agent": "refund",
+      "delivery agent": "delivery",
+      "router agent": null // router agent allows anything, or multi_intent
+    };
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const res = await fetch("/static/test_cases.json");
+        testCases = await res.json();
+        renderTestCards();
+        updateStats();
+      } catch (err) {
+        console.error("Failed to load test cases:", err);
+      }
+
+      document.getElementById("runAllBtn").addEventListener("click", () => runTests(testCases));
+      document.getElementById("runFailedBtn").addEventListener("click", () => {
+        const failedCases = testCases.filter(c => failedTestIds.has(c.id));
+        runTests(failedCases);
+      });
+      document.getElementById("stopBtn").addEventListener("click", () => {
+        stopRequested = true;
+      });
+    });
+
+    function renderTestCards() {
+      const container = document.getElementById("testList");
+      container.innerHTML = "";
+      testCases.forEach(tc => {
+        const card = document.createElement("div");
+        card.className = "test-card";
+        card.id = `tc-card-${tc.id}`;
+        card.innerHTML = `
+          <div class="test-header">
+            <div>
+              <span class="test-id">Case ${tc.id}</span>
+              <span style="color:var(--text-muted); font-size:0.8rem; margin-left:10px">${tc.category}</span>
+            </div>
+            <span class="test-badge badge-pending" id="badge-${tc.id}">Pending</span>
+          </div>
+          <div class="test-query">${tc.user_turns.join(" &rarr; ")}</div>
+          <div class="test-details" id="details-${tc.id}" style="display:none"></div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function updateStats() {
+      const total = testCases.length;
+      const passed = testCases.filter(tc => tc.status === "pass").length;
+      const failed = testCases.filter(tc => tc.status === "fail").length;
+      const rate = total > 0 ? Math.round((passed / (passed + failed || 1)) * 100) : 0;
+
+      document.getElementById("statTotal").textContent = total;
+      document.getElementById("statPassed").textContent = passed;
+      document.getElementById("statFailed").textContent = failed;
+      document.getElementById("statPassRate").textContent = `${rate}%`;
+
+      document.getElementById("runFailedBtn").disabled = failed === 0;
+    }
+
+    async function runTests(casesToRun) {
+      if (isRunning) return;
+      isRunning = true;
+      stopRequested = false;
+
+      document.getElementById("runAllBtn").disabled = true;
+      document.getElementById("runFailedBtn").disabled = true;
+      document.getElementById("stopBtn").disabled = false;
+
+      for (let tc of casesToRun) {
+        if (stopRequested) break;
+
+        const card = document.getElementById(`tc-card-${tc.id}`);
+        const badge = document.getElementById(`badge-${tc.id}`);
+        const detailsEl = document.getElementById(`details-${tc.id}`);
+
+        badge.className = "test-badge badge-running";
+        badge.textContent = "Running";
+        detailsEl.style.display = "block";
+        detailsEl.innerHTML = "Initializing chat session...";
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Reload iframe to get fresh customer state and history
+        appFrame.src = "/";
+        await new Promise(r => appFrame.onload = r);
+        // Wait slightly for DOM and dynamic data loading in app.js
+        await new Promise(r => setTimeout(r, 1000));
+
+        let currentTurn = 0;
+        let lastReply = "";
+        let lastIntent = "";
+        let logs = [];
+        let passed = true;
+        let failureReason = "";
+
+        const iframeWin = appFrame.contentWindow;
+        if (!iframeWin) {
+          passed = false;
+          failureReason = "App iframe is not accessible.";
+        }
+
+        while (passed && currentTurn < tc.user_turns.length) {
+          const userMsg = tc.user_turns[currentTurn];
+          logs.push(`User: "${userMsg}"`);
+          detailsEl.innerHTML = logs.map(l => `<div>${l}</div>`).join("") + `<div style="color:var(--orange); font-weight:600; margin-top:5px">Waiting for agent...</div>`;
+
+          const getAiBubbleCount = () => iframeWin.document.querySelectorAll(".ai-bubble").length;
+          const initialCount = getAiBubbleCount();
+
+          // Type and click send
+          const inputEl = iframeWin.document.getElementById("chatInput");
+          const sendBtn = iframeWin.document.getElementById("sendBtn");
+          if (!inputEl || !sendBtn) {
+            passed = false;
+            failureReason = "Could not find chat input or send button in iframe.";
+            break;
+          }
+
+          inputEl.value = userMsg;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          sendBtn.disabled = false;
+          sendBtn.click();
+
+          // Wait for a new ai-bubble to be appended
+          let retries = 120; // 60 seconds max
+          while (getAiBubbleCount() === initialCount && retries > 0) {
+            // Also check for error banner
+            const errorBanner = iframeWin.document.getElementById("errorBanner");
+            if (errorBanner && errorBanner.classList.contains("visible")) {
+              passed = false;
+              failureReason = `App returned error: ${errorBanner.textContent}`;
+              break;
+            }
+            await new Promise(r => setTimeout(r, 500));
+            retries--;
+          }
+
+          if (!passed) break;
+
+          if (retries === 0) {
+            passed = false;
+            failureReason = "Timeout waiting for agent response (took > 60 seconds).";
+            break;
+          }
+
+          // Retrieve last assistant message from DOM
+          const aiBubbles = iframeWin.document.querySelectorAll(".ai-bubble");
+          if (aiBubbles.length === 0) {
+            passed = false;
+            failureReason = "No assistant message bubble found in DOM.";
+            break;
+          }
+
+          const lastBubble = aiBubbles[aiBubbles.length - 1];
+          lastReply = lastBubble.innerText || lastBubble.textContent;
+          
+          // Get intent tag text
+          const parent = lastBubble.parentElement;
+          const intentTag = parent.querySelector(".intent-tag");
+          if (intentTag) {
+            lastIntent = intentTag.textContent.trim();
+          } else {
+            lastIntent = "";
+          }
+
+          logs.push(`Assistant (intent: ${lastIntent}): "${lastReply}"`);
+          currentTurn++;
+        }
+
+        // Apply validations on the final response
+        if (passed) {
+          // 1. Expected Agent checks
+          const expectedAgentLower = tc.expected_agent.toLowerCase();
+          const expectedIntent = AGENT_TO_INTENT[expectedAgentLower];
+          if (expectedIntent) {
+            // Check if intent contains the expected keyword
+            const actualIntentLower = lastIntent.toLowerCase();
+            if (!actualIntentLower.includes(expectedIntent)) {
+              passed = false;
+              failureReason = `Expected agent "${tc.expected_agent}" but got intent "${lastIntent}".`;
+            }
+          }
+
+          // 2. Forbidden markdown headers or horizontal rules
+          if (/[#=-]{3,}/.test(lastReply) || lastReply.includes("#")) {
+            passed = false;
+            failureReason = "Quality Check Failed: Response contains forbidden markdown headers (#) or rules (---/===).";
+          }
+
+          // 3. Markdown bullets
+          if (/(^|\n)[ \t]*[\*\-]\s+/.test(lastReply)) {
+            passed = false;
+            failureReason = "Quality Check Failed: Response contains forbidden markdown bullets (* or -). Use unicode • instead.";
+          }
+
+          // 4. Raw stock quantities
+          if (/\b\d+\s+(in stock|available|items|units|qty|quantity)\b/i.test(lastReply) || lastReply.toLowerCase().includes("quantity:")) {
+            passed = false;
+            failureReason = "Quality Check Failed: Response exposes raw stock numbers. Use qualitative terms.";
+          }
+
+          // 5. Customer/Store Database IDs exposure
+          if ((/\bCUST-\d+\b/.test(lastReply) || /\bSTR-\d+\b/.test(lastReply)) && !tc.user_turns.some(ut => ut.toLowerCase().includes("id") || ut.toLowerCase().includes("code"))) {
+            passed = false;
+            failureReason = "Quality Check Failed: Response exposes internal database IDs (CUST-x / STR-x).";
+          }
+
+          // 6. Sainsbury's Website link (Rule 8)
+          const isProductQuery = tc.category.toLowerCase().includes("product") || tc.category.toLowerCase().includes("recommend") || tc.category.toLowerCase().includes("shopping");
+          if (isProductQuery && !lastReply.includes("https://www.sainsburys.co.uk/")) {
+            passed = false;
+            failureReason = "Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link.";
+          }
+        }
+
+        if (passed) {
+          tc.status = "pass";
+          failedTestIds.delete(tc.id);
+          badge.className = "test-badge badge-pass";
+          badge.textContent = "Pass";
+          detailsEl.innerHTML = logs.map(l => {
+            if (l.startsWith("User:")) return `<div style="margin-top:5px; font-weight:600">${l}</div>`;
+            return `<div class="reply-log">${l}</div>`;
+          }).join("");
+        } else {
+          tc.status = "fail";
+          failedTestIds.add(tc.id);
+          badge.className = "test-badge badge-fail";
+          badge.textContent = "Fail";
+          detailsEl.innerHTML = logs.map(l => {
+            if (l.startsWith("User:")) return `<div style="margin-top:5px; font-weight:600">${l}</div>`;
+            return `<div class="reply-log">${l}</div>`;
+          }).join("") + `<div class="error-log">❌ Failure: ${failureReason}</div>`;
+        }
+
+        updateStats();
+      }
+
+      // Save results to backend
+      const stats = {
+        total: testCases.length,
+        passed: testCases.filter(tc => tc.status === "pass").length,
+        failed: testCases.filter(tc => tc.status === "fail").length,
+      };
+      
+      const payload = {
+        stats: stats,
+        results: testCases.map(tc => ({
+          id: tc.id,
+          category: tc.category,
+          expected_agent: tc.expected_agent,
+          status: tc.status || "pending",
+          user_turns: tc.user_turns,
+          logs: tc.status === "fail" ? document.getElementById(`details-${tc.id}`).innerText : ""
+        }))
+      };
+
+      try {
+        await fetch("/api/save_results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        console.log("Test results saved to backend.");
+      } catch (err) {
+        console.error("Failed to save test results:", err);
+      }
+
+      isRunning = false;
+      document.getElementById("runAllBtn").disabled = false;
+      document.getElementById("stopBtn").disabled = true;
+    }
+  </script>
+</body>
+</html>
