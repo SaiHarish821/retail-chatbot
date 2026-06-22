@@ -17,7 +17,7 @@ let micStream = null;
 let recordBuffer = [];
 let silenceTimer = null;
 const SILENCE_THRESHOLD = 0.015;
-const SILENCE_DURATION = 5000;
+const SILENCE_DURATION = 2500; // 2.5 seconds silence detection
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -400,10 +400,7 @@ function scrollToBottom() {
 }
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
-// ── Voice ─────────────────────────────────────────────────────────────────────
 let recognition = null;
-let silenceTimer = null;
-const SILENCE_DURATION = 2500; // 2.5 seconds silence detection
 
 function resetSilenceTimer() {
   if (silenceTimer) {
