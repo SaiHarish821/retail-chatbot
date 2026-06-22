@@ -30,7 +30,7 @@ let currentUtterance = null;
 let currentAudioElement = null; // High-quality Azure neural voice audio
 let phoneCurrentTurnTranscript = "";
 let phoneHasDetectedSpeechFallback = false;
-const PHONE_SILENCE_DURATION = 3500; // 3.5 seconds silence detection for Phone Call Mode to avoid cutting off user
+const PHONE_SILENCE_DURATION = 4500; // 4.5 seconds silence detection for Phone Call Mode to avoid cutting off user
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -981,7 +981,7 @@ async function startPhoneCall() {
 
   // Show Overlay
   document.getElementById("phoneCallOverlay").classList.add("active");
-  document.getElementById("phoneTranscript").textContent = "Connecting...";
+  document.getElementById("phoneTranscript").textContent = "Waiting for speech...";
   const phoneAIEl = document.getElementById("phoneAIResponse");
   if (phoneAIEl) phoneAIEl.textContent = "Connecting...";
   setCallState("GREETING");
