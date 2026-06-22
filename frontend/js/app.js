@@ -27,6 +27,8 @@ let isPhoneSpeakerActive = true;
 let phoneRecognition = null;
 let phoneSilenceTimer = null;
 let currentUtterance = null;
+let phoneCurrentTurnTranscript = "";
+let phoneHasDetectedSpeechFallback = false;
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -1180,15 +1182,9 @@ function resetPhoneSilenceTimer() {
 function startListeningForCall() {
   if (!isInCallMode || isPhoneMuted) return;
 
-  const transcriptPreview = document.getElementById("phoneTranscript");
-  if (transcriptPreview) {
-    transcriptPreview.textContent = "Listening...";
-  }
-  
-  const phoneAIEl = document.getElementById("phoneAIResponse");
-  if (phoneAIEl && callState === "SPEAKING") {
-    phoneAIEl.textContent = "Listening for your next question...";
-  }
+  // Reset the current turn transcript, but do NOT clear the visible DOM text
+  // so the conversation history remains on the screen until the user starts speaking again.
+  phoneCurrentTurnTranscript = "";
   
   setCallState("LISTENING");
 
@@ -1222,7 +1218,10 @@ function startListeningForCall() {
 
         const currentText = (finalTranscript + interimTranscript).trim();
         if (currentText) {
-          transcriptPreview.textContent = currentText;
+          phoneCurrentTurnTranscript = currentText;
+          if (transcriptPreview) {
+            transcriptPreview.textContent = currentText;
+          }
 
           // Barge-in (Interruption Support)
           if (callState === "SPEAKING" || callState === "GREETING") {
@@ -1237,7 +1236,9 @@ function startListeningForCall() {
               if (phoneAIEl) phoneAIEl.textContent = "Interrupted...";
               
               finalTranscript = "";
-              transcriptPreview.textContent = currentText;
+              if (transcriptPreview) {
+                transcriptPreview.textContent = currentText;
+              }
             }
           }
           
@@ -1288,21 +1289,22 @@ function submitPhoneCallTurn() {
 async function submitPhoneCallTurnNative() {
   if (!isInCallMode || isPhoneMuted) return;
 
-  const transcriptPreview = document.getElementById("phoneTranscript");
-  const rawText = transcriptPreview ? transcriptPreview.textContent : "";
-  const text = rawText.trim();
+  const text = phoneCurrentTurnTranscript.trim();
 
-  if (!text || text === "Listening..." || text === "Waiting for speech..." || text === "Processing...") {
+  if (!text) {
     resetPhoneSilenceTimer();
     return;
   }
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   if (wordCount < 2) {
-    transcriptPreview.textContent = "Listening...";
+    // Noise or short greeting, ignore and do not submit. Clear text.
+    phoneCurrentTurnTranscript = "";
     resetPhoneSilenceTimer();
     return;
   }
+
+  const transcriptPreview = document.getElementById("phoneTranscript");
 
   if (phoneRecognition) {
     phoneRecognition.onend = null;
@@ -1386,6 +1388,7 @@ async function startPhoneCallRecordingFallback() {
 
     phoneScriptProcessor = phoneAudioContext.createScriptProcessor(4096, 1, 1);
     phoneRecordBuffer = [];
+    phoneHasDetectedSpeechFallback = false;
 
     phoneScriptProcessor.onaudioprocess = (e) => {
       if (!isInCallMode || isPhoneMuted) return;
@@ -1416,6 +1419,7 @@ async function startPhoneCallRecordingFallback() {
       if (rms >= SILENCE_THRESHOLD) {
         // Sound detected
         if (callState === "LISTENING") {
+          phoneHasDetectedSpeechFallback = true;
           resetPhoneSilenceTimer();
         } else if (callState === "SPEAKING" || callState === "GREETING") {
           // Barge-in check: user speaks over speaker
@@ -1467,8 +1471,11 @@ function stopPhoneCallRecordingFallback() {
 }
 
 async function submitPhoneCallTurnFallback() {
-  if (phoneRecordBuffer.length === 0) {
-    startListeningForCall();
+  if (!phoneHasDetectedSpeechFallback || phoneRecordBuffer.length === 0) {
+    // No speech detected during fallback, reset buffers/timer and keep recording
+    phoneRecordBuffer = [];
+    phoneHasDetectedSpeechFallback = false;
+    resetPhoneSilenceTimer();
     return;
   }
 
@@ -1488,7 +1495,7 @@ async function submitPhoneCallTurnFallback() {
   formData.append("audio", blob, "voice.wav");
 
   const transcriptPreview = document.getElementById("phoneTranscript");
-  transcriptPreview.textContent = "Processing...";
+  // Don't overwrite the previous text yet, wait until we verify if transcript is non-empty
   setCallState("PROCESSING");
 
   try {
@@ -1505,9 +1512,12 @@ async function submitPhoneCallTurnFallback() {
     if (text) {
       const wordCount = text.split(/\s+/).filter(Boolean).length;
       if (wordCount < 2) {
-        transcriptPreview.textContent = "Listening...";
+        // Ignore noise, continue listening
         startListeningForCall();
       } else {
+        if (transcriptPreview) {
+          transcriptPreview.textContent = text;
+        }
         appendUserMessage(text);
         conversationHistory.push({ role: "user", content: text });
 
