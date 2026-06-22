@@ -175,3 +175,20 @@ async def voice_transcribe(audio: UploadFile = File(...)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/voice/speak")
+async def voice_speak(text: str):
+    """
+    Synthesize text to audio using Azure Cognitive Services Text-to-Speech (Sonia Neural).
+    """
+    try:
+        from voice import synthesize_speech
+        from fastapi.responses import Response
+        audio_data = await synthesize_speech(text)
+        return Response(content=audio_data, media_type="audio/wav")
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+

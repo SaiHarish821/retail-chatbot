@@ -27,8 +27,10 @@ let isPhoneSpeakerActive = true;
 let phoneRecognition = null;
 let phoneSilenceTimer = null;
 let currentUtterance = null;
+let currentAudioElement = null; // High-quality Azure neural voice audio
 let phoneCurrentTurnTranscript = "";
 let phoneHasDetectedSpeechFallback = false;
+const PHONE_SILENCE_DURATION = 3500; // 3.5 seconds silence detection for Phone Call Mode to avoid cutting off user
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -1005,6 +1007,11 @@ function endPhoneCall() {
   window.speechSynthesis.cancel();
   currentUtterance = null;
 
+  if (currentAudioElement) {
+    currentAudioElement.pause();
+    currentAudioElement = null;
+  }
+
   // Stop Listening / Recording
   if (phoneRecognition) {
     phoneRecognition.onend = null;
@@ -1078,6 +1085,10 @@ function togglePhoneSpeaker() {
     }
     showToast("🔇 Speaker Off");
     window.speechSynthesis.cancel();
+    if (currentAudioElement) {
+      currentAudioElement.pause();
+      currentAudioElement = null;
+    }
     
     // If AI was speaking, transition directly to listening now
     if (callState === "SPEAKING" || callState === "GREETING") {
@@ -1087,14 +1098,19 @@ function togglePhoneSpeaker() {
 }
 
 function speakPhoneCallText(text) {
-  if (!('speechSynthesis' in window)) {
+  // If speaker is off, don't play audio
+  if (!isPhoneSpeakerActive) {
     startListeningForCall();
     return;
   }
-
-  window.speechSynthesis.cancel();
-
-  // Clean HTML/emojis/ids as in standard speakText
+  
+  // Clean up previous audio element
+  if (currentAudioElement) {
+    currentAudioElement.pause();
+    currentAudioElement = null;
+  }
+  
+  // Clean text for TTS
   let cleanText = text.replace(/<[^>]*>/g, "")
     .replace(/\bCUST-\d+\b/g, "")
     .replace(/\bSTR-\d+\b/g, "")
@@ -1115,15 +1131,106 @@ function speakPhoneCallText(text) {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!cleanText || !isPhoneSpeakerActive) {
+  if (!cleanText) {
     startListeningForCall();
     return;
   }
 
+  setCallState("SPEAKING");
+
+  // Call the backend speech synthesis endpoint (using highly human-like Azure Neural Voice)
+  const audioUrl = `${API_BASE}/voice/speak?text=${encodeURIComponent(cleanText)}`;
+  const audio = new Audio(audioUrl);
+  currentAudioElement = audio;
+
+  audio.onplay = () => {
+    // Dynamic text typing effect synchronized with speech!
+    // Since we don't have word boundary timestamps easily from audio.onplay,
+    // we can simulate typing text word-by-word at a standard speaking rate (approx 160 words per minute).
+    const words = cleanText.split(" ");
+    let currentWordIdx = 0;
+    const phoneAIEl = document.getElementById("phoneAIResponse");
+    
+    if (phoneAIEl) {
+      phoneAIEl.textContent = "";
+    }
+    
+    let intervalTime = 320; // fallback 320ms per word
+    if (audio.duration && !isNaN(audio.duration)) {
+      intervalTime = (audio.duration * 1000) / words.length;
+    }
+    
+    const typingInterval = setInterval(() => {
+      if (currentAudioElement !== audio || audio.paused) {
+        clearInterval(typingInterval);
+        return;
+      }
+      if (currentWordIdx < words.length) {
+        currentWordIdx++;
+        if (phoneAIEl) {
+          phoneAIEl.textContent = words.slice(0, currentWordIdx).join(" ");
+        }
+      } else {
+        clearInterval(typingInterval);
+      }
+    }, intervalTime);
+    
+    audio.addEventListener("loadedmetadata", () => {
+      clearInterval(typingInterval);
+      const newInterval = (audio.duration * 1000) / words.length;
+      let wordIdx = currentWordIdx;
+      
+      const newTypingInterval = setInterval(() => {
+        if (currentAudioElement !== audio || audio.paused) {
+          clearInterval(newTypingInterval);
+          return;
+        }
+        if (wordIdx < words.length) {
+          wordIdx++;
+          if (phoneAIEl) {
+            phoneAIEl.textContent = words.slice(0, wordIdx).join(" ");
+          }
+        } else {
+          clearInterval(newTypingInterval);
+        }
+      }, newInterval);
+    });
+  };
+
+  audio.onended = () => {
+    if (currentAudioElement === audio) {
+      currentAudioElement = null;
+    }
+    if (isInCallMode) {
+      startListeningForCall();
+    }
+  };
+
+  audio.onerror = (e) => {
+    console.error("Azure speech synthesis audio error, falling back to native SpeechSynthesis:", e);
+    if (currentAudioElement === audio) {
+      currentAudioElement = null;
+    }
+    speakPhoneCallTextNativeFallback(cleanText);
+  };
+
+  audio.play().catch(err => {
+    console.warn("Autoplay block or audio play failed, falling back to native SpeechSynthesis:", err);
+    speakPhoneCallTextNativeFallback(cleanText);
+  });
+}
+
+function speakPhoneCallTextNativeFallback(cleanText) {
+  if (!('speechSynthesis' in window)) {
+    startListeningForCall();
+    return;
+  }
+
+  window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = "en-GB";
 
-  // Select voice using the same standard fallback logic
+  // Select voice using standard fallback logic
   const voices = window.speechSynthesis.getVoices();
   const enVoices = voices.filter(v => v.lang.toLowerCase().startsWith("en"));
   const findVoice = () => {
@@ -1149,6 +1256,21 @@ function speakPhoneCallText(text) {
     }
   };
 
+  utterance.onboundary = (event) => {
+    if (event.name === 'word') {
+      const charIndex = event.charIndex;
+      const remainingText = cleanText.substring(charIndex);
+      const nextSpace = remainingText.indexOf(' ');
+      const wordLength = nextSpace === -1 ? remainingText.length : nextSpace;
+      const spokenPart = cleanText.substring(0, charIndex + wordLength);
+      
+      const phoneAIEl = document.getElementById("phoneAIResponse");
+      if (phoneAIEl) {
+        phoneAIEl.textContent = spokenPart;
+      }
+    }
+  };
+
   utterance.onend = () => {
     currentUtterance = null;
     if (isInCallMode) {
@@ -1157,7 +1279,7 @@ function speakPhoneCallText(text) {
   };
 
   utterance.onerror = (e) => {
-    console.error("SpeechSynthesisUtterance error:", e);
+    console.error("SpeechSynthesisUtterance fallback error:", e);
     currentUtterance = null;
     if (isInCallMode) {
       startListeningForCall();
@@ -1176,7 +1298,7 @@ function resetPhoneSilenceTimer() {
     if (isInCallMode && callState === "LISTENING" && !isPhoneMuted) {
       submitPhoneCallTurn();
     }
-  }, SILENCE_DURATION);
+  }, PHONE_SILENCE_DURATION);
 }
 
 function startListeningForCall() {
@@ -1228,8 +1350,17 @@ function startListeningForCall() {
             const wordCount = currentText.split(/\s+/).filter(Boolean).length;
             if (wordCount >= 1) {
               console.log("[CallMode] User interrupted AI speech. Stopping TTS...");
+              
+              // Cancel native TTS
               window.speechSynthesis.cancel();
               currentUtterance = null;
+
+              // Cancel Azure Audio TTS
+              if (currentAudioElement) {
+                currentAudioElement.pause();
+                currentAudioElement = null;
+              }
+              
               setCallState("LISTENING");
               
               const phoneAIEl = document.getElementById("phoneAIResponse");
@@ -1317,7 +1448,6 @@ async function submitPhoneCallTurnNative() {
   }
 
   setCallState("PROCESSING");
-  transcriptPreview.textContent = "Processing...";
 
   appendUserMessage(text);
   conversationHistory.push({ role: "user", content: text });
@@ -1428,6 +1558,12 @@ async function startPhoneCallRecordingFallback() {
             console.log("[CallMode Fallback] User speaking detected. stopping speech...");
             window.speechSynthesis.cancel();
             currentUtterance = null;
+            
+            if (currentAudioElement) {
+              currentAudioElement.pause();
+              currentAudioElement = null;
+            }
+            
             phoneRecordBuffer = []; // Clear buffer to start fresh recording
             setCallState("LISTENING");
             consecutiveSpeechFrames = 0;
