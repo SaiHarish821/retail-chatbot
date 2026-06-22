@@ -29,6 +29,7 @@ let phoneSilenceTimer = null;
 let currentUtterance = null;
 let currentAudioElement = null; // High-quality Azure neural voice audio
 let phoneCurrentTurnTranscript = "";
+let phoneAccumulatedTurnTranscript = ""; // Accumulates finalized transcripts across browser restarts
 let phoneHasDetectedSpeechFallback = false;
 const PHONE_SILENCE_DURATION = 4500; // 4.5 seconds silence detection for Phone Call Mode to avoid cutting off user
 
@@ -1097,6 +1098,33 @@ function togglePhoneSpeaker() {
   }
 }
 
+function getWordDelay(word) {
+  let delay = 350; // base delay per word
+  
+  if (!word) return delay;
+  
+  // Clean word from punctuation for length check
+  const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+  
+  // Longer words take longer to speak
+  if (cleanWord.length > 8) {
+    delay += 120;
+  } else if (cleanWord.length > 5) {
+    delay += 60;
+  } else if (cleanWord.length <= 2) {
+    delay -= 60; // shorter words are spoken faster
+  }
+  
+  // Punctuation pauses (to perfectly mirror natural neural voice pauses)
+  if (word.endsWith(",") || word.endsWith(";") || word.endsWith(":")) {
+    delay += 250; // comma pause
+  } else if (word.endsWith(".") || word.endsWith("?") || word.endsWith("!")) {
+    delay += 600; // sentence end pause
+  }
+  
+  return delay;
+}
+
 function speakPhoneCallText(text) {
   // If speaker is off, don't play audio
   if (!isPhoneSpeakerActive) {
@@ -1144,9 +1172,7 @@ function speakPhoneCallText(text) {
   currentAudioElement = audio;
 
   audio.onplay = () => {
-    // Dynamic text typing effect synchronized with speech!
-    // Since we don't have word boundary timestamps easily from audio.onplay,
-    // we can simulate typing text word-by-word at a standard speaking rate (approx 160 words per minute).
+    // Dynamic text typing effect perfectly synchronized with speech boundaries and punctuation pauses!
     const words = cleanText.split(" ");
     let currentWordIdx = 0;
     const phoneAIEl = document.getElementById("phoneAIResponse");
@@ -1155,46 +1181,26 @@ function speakPhoneCallText(text) {
       phoneAIEl.textContent = "";
     }
     
-    let intervalTime = 320; // fallback 320ms per word
-    if (audio.duration && !isNaN(audio.duration)) {
-      intervalTime = (audio.duration * 1000) / words.length;
-    }
-    
-    const typingInterval = setInterval(() => {
+    function typeNextWord() {
       if (currentAudioElement !== audio || audio.paused) {
-        clearInterval(typingInterval);
         return;
       }
       if (currentWordIdx < words.length) {
+        const word = words[currentWordIdx];
         currentWordIdx++;
         if (phoneAIEl) {
           phoneAIEl.textContent = words.slice(0, currentWordIdx).join(" ");
+          // Auto-scroll response box as words type out
+          phoneAIEl.scrollTop = phoneAIEl.scrollHeight;
         }
-      } else {
-        clearInterval(typingInterval);
+        
+        // Calculate punctuation-aware delay to keep visual text perfectly in sync with neural speech
+        const delay = getWordDelay(word);
+        setTimeout(typeNextWord, delay);
       }
-    }, intervalTime);
+    }
     
-    audio.addEventListener("loadedmetadata", () => {
-      clearInterval(typingInterval);
-      const newInterval = (audio.duration * 1000) / words.length;
-      let wordIdx = currentWordIdx;
-      
-      const newTypingInterval = setInterval(() => {
-        if (currentAudioElement !== audio || audio.paused) {
-          clearInterval(newTypingInterval);
-          return;
-        }
-        if (wordIdx < words.length) {
-          wordIdx++;
-          if (phoneAIEl) {
-            phoneAIEl.textContent = words.slice(0, wordIdx).join(" ");
-          }
-        } else {
-          clearInterval(newTypingInterval);
-        }
-      }, newInterval);
-    });
+    typeNextWord();
   };
 
   audio.onended = () => {
@@ -1304,9 +1310,10 @@ function resetPhoneSilenceTimer() {
 function startListeningForCall() {
   if (!isInCallMode || isPhoneMuted) return;
 
-  // Reset the current turn transcript, but do NOT clear the visible DOM text
+  // Reset the current turn transcripts, but do NOT clear the visible DOM text
   // so the conversation history remains on the screen until the user starts speaking again.
   phoneCurrentTurnTranscript = "";
+  phoneAccumulatedTurnTranscript = "";
   
   setCallState("LISTENING");
 
@@ -1329,25 +1336,31 @@ function startListeningForCall() {
       };
 
       phoneRecognition.onresult = (event) => {
+        let sessionFinalTranscript = "";
         let interimTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            sessionFinalTranscript += event.results[i][0].transcript;
           } else {
             interimTranscript += event.results[i][0].transcript;
           }
         }
+        
+        finalTranscript = sessionFinalTranscript;
 
-        const currentText = (finalTranscript + interimTranscript).trim();
-        if (currentText) {
-          phoneCurrentTurnTranscript = currentText;
+        const currentSegmentText = (finalTranscript + interimTranscript).trim();
+        const totalText = (phoneAccumulatedTurnTranscript + " " + currentSegmentText).trim();
+        
+        if (totalText) {
+          phoneCurrentTurnTranscript = totalText;
+          const transcriptPreview = document.getElementById("phoneTranscript");
           if (transcriptPreview) {
-            transcriptPreview.textContent = currentText;
+            transcriptPreview.textContent = totalText;
           }
 
           // Barge-in (Interruption Support)
           if (callState === "SPEAKING" || callState === "GREETING") {
-            const wordCount = currentText.split(/\s+/).filter(Boolean).length;
+            const wordCount = totalText.split(/\s+/).filter(Boolean).length;
             if (wordCount >= 1) {
               console.log("[CallMode] User interrupted AI speech. Stopping TTS...");
               
@@ -1366,9 +1379,13 @@ function startListeningForCall() {
               const phoneAIEl = document.getElementById("phoneAIResponse");
               if (phoneAIEl) phoneAIEl.textContent = "Interrupted...";
               
+              // Clear previous turn segment logs to focus on new question
+              phoneAccumulatedTurnTranscript = "";
               finalTranscript = "";
+              phoneCurrentTurnTranscript = totalText;
+              
               if (transcriptPreview) {
-                transcriptPreview.textContent = currentText;
+                transcriptPreview.textContent = totalText;
               }
             }
           }
@@ -1386,6 +1403,12 @@ function startListeningForCall() {
       };
 
       phoneRecognition.onend = () => {
+        // Save the completed speech segment to the accumulated turn transcript
+        if (finalTranscript) {
+          phoneAccumulatedTurnTranscript = (phoneAccumulatedTurnTranscript + " " + finalTranscript).trim();
+          finalTranscript = "";
+        }
+        
         // Continuous listening: restart if still active and not muted
         if (isInCallMode && callState === "LISTENING" && !isPhoneMuted) {
           try {
