@@ -74,6 +74,7 @@
         <div class="topbar-subtitle">Powered by Azure AI Foundry · GPT-4o</div>
       </div>
       <div class="topbar-right">
+        <button id="startCallBtn" class="call-btn" title="Start Voice Call">📞 Start Call</button>
         <button id="ttsToggleBtn" class="tts-btn" title="Enable Text-to-Speech" aria-label="Toggle Text-to-Speech">🔇</button>
         <div class="status-dot">
           <div class="dot"></div>
@@ -143,6 +144,40 @@
     </div>
 
   </main>
+</div>
+
+<!-- Phone Call Overlay -->
+<div id="phoneCallOverlay" class="phone-call-overlay">
+  <div class="phone-card">
+    <div class="phone-header">
+      <div class="phone-title">Sainsbury's Voice Line</div>
+      <div class="phone-subtitle">Direct Multi-Agent Assistant</div>
+    </div>
+    
+    <div class="phone-avatar-container">
+      <div id="phonePulse1" class="phone-avatar-pulse pulse-listening"></div>
+      <div id="phonePulse2" class="phone-avatar-pulse-2 pulse-listening"></div>
+      <div class="phone-avatar">✦</div>
+    </div>
+    
+    <div id="phoneStatus" class="phone-status">Connecting...</div>
+    
+    <div class="phone-transcript-container">
+      <div class="phone-transcript-label">You:</div>
+      <div id="phoneTranscript" class="phone-transcript-preview">Waiting for speech...</div>
+    </div>
+    
+    <div class="phone-transcript-container">
+      <div class="phone-transcript-label">AI:</div>
+      <div id="phoneAIResponse" class="phone-ai-response-preview">AI response will appear here...</div>
+    </div>
+    
+    <div class="phone-controls">
+      <button id="phoneMuteBtn" class="phone-control-btn mute-btn" title="Mute Microphone">🎙️</button>
+      <button id="phoneEndBtn" class="phone-control-btn end-btn" title="End Call">📞</button>
+      <button id="phoneSpeakerBtn" class="phone-control-btn speaker-btn active" title="Toggle Speaker">🔊</button>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->

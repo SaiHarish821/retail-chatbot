@@ -19,6 +19,15 @@ let silenceTimer = null;
 const SILENCE_THRESHOLD = 0.015;
 const SILENCE_DURATION = 2500; // 2.5 seconds silence detection
 
+// ── Phone Call Mode State ────────────────────────────────────────────────────
+let isInCallMode = false;
+let callState = "IDLE"; // "IDLE", "GREETING", "LISTENING", "PROCESSING", "SPEAKING", "MUTED"
+let isPhoneMuted = false;
+let isPhoneSpeakerActive = true;
+let phoneRecognition = null;
+let phoneSilenceTimer = null;
+let currentUtterance = null;
+
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
 let orders = [];
@@ -122,6 +131,27 @@ function bindEvents() {
   });
 
   voiceBtn.addEventListener("click", toggleRecording);
+
+  // Phone Call Mode controls
+  const startCallBtn = document.getElementById("startCallBtn");
+  if (startCallBtn) {
+    startCallBtn.addEventListener("click", startPhoneCall);
+  }
+
+  const phoneMuteBtn = document.getElementById("phoneMuteBtn");
+  if (phoneMuteBtn) {
+    phoneMuteBtn.addEventListener("click", togglePhoneMute);
+  }
+
+  const phoneEndBtn = document.getElementById("phoneEndBtn");
+  if (phoneEndBtn) {
+    phoneEndBtn.addEventListener("click", endPhoneCall);
+  }
+
+  const phoneSpeakerBtn = document.getElementById("phoneSpeakerBtn");
+  if (phoneSpeakerBtn) {
+    phoneSpeakerBtn.addEventListener("click", togglePhoneSpeaker);
+  }
 
   // Quick suggestion chips
   document.querySelectorAll(".chip").forEach(chip => {
@@ -881,6 +911,639 @@ function speakText(text) {
   }
 
   window.speechSynthesis.speak(utterance);
+}
+
+// ── Phone Call Mode Logic ────────────────────────────────────────────────────
+
+function setCallState(state) {
+  callState = state;
+  const statusEl = document.getElementById("phoneStatus");
+  const pulse1 = document.getElementById("phonePulse1");
+  const pulse2 = document.getElementById("phonePulse2");
+  if (!statusEl || !pulse1 || !pulse2) return;
+
+  statusEl.className = "phone-status";
+  pulse1.className = "phone-avatar-pulse";
+  pulse2.className = "phone-avatar-pulse-2";
+
+  if (state === "GREETING") {
+    statusEl.textContent = "AI Greeting...";
+    statusEl.classList.add("speaking");
+    pulse1.classList.add("pulse-speaking");
+    pulse2.classList.add("pulse-speaking");
+  } else if (state === "SPEAKING") {
+    statusEl.textContent = "AI Speaking...";
+    statusEl.classList.add("speaking");
+    pulse1.classList.add("pulse-speaking");
+    pulse2.classList.add("pulse-speaking");
+  } else if (state === "LISTENING") {
+    statusEl.textContent = "Listening...";
+    statusEl.classList.add("listening");
+    pulse1.classList.add("pulse-listening");
+    pulse2.classList.add("pulse-listening");
+  } else if (state === "PROCESSING") {
+    statusEl.textContent = "Processing...";
+    statusEl.classList.add("processing");
+    pulse1.classList.add("pulse-processing");
+    pulse2.classList.add("pulse-processing");
+  } else if (state === "MUTED") {
+    statusEl.textContent = "Muted";
+    statusEl.classList.add("muted");
+  } else {
+    statusEl.textContent = "Connecting...";
+  }
+}
+
+async function startPhoneCall() {
+  if (isInCallMode) return;
+  isInCallMode = true;
+  isPhoneMuted = false;
+
+  // Clean up any standard voice recording
+  if (isRecording) {
+    stopRecording(false);
+  }
+
+  // Clear chat input, hide any banner/toast
+  chatInput.value = "";
+  hideError();
+
+  // Reset mute button UI
+  const muteBtn = document.getElementById("phoneMuteBtn");
+  if (muteBtn) {
+    muteBtn.classList.remove("muted");
+    muteBtn.textContent = "🎙️";
+  }
+
+  // Show Overlay
+  document.getElementById("phoneCallOverlay").classList.add("active");
+  document.getElementById("phoneTranscript").textContent = "Connecting...";
+  const phoneAIEl = document.getElementById("phoneAIResponse");
+  if (phoneAIEl) phoneAIEl.textContent = "Connecting...";
+  setCallState("GREETING");
+
+  // Load name if customer is loaded
+  const firstName = customer && customer.name ? customer.name.split(" ")[0] : "Jamie";
+  const greetingText = `Hello ${firstName}, how can I help you today?`;
+  if (phoneAIEl) phoneAIEl.textContent = greetingText;
+
+  // Visual addition to chat panel
+  appendAIMessage(greetingText, "general");
+  conversationHistory.push({ role: "assistant", content: greetingText });
+
+  // Speak greeting
+  speakPhoneCallText(greetingText);
+}
+
+function endPhoneCall() {
+  if (!isInCallMode) return;
+  isInCallMode = false;
+
+  // Cancel Speech
+  window.speechSynthesis.cancel();
+  currentUtterance = null;
+
+  // Stop Listening / Recording
+  if (phoneRecognition) {
+    phoneRecognition.onend = null;
+    phoneRecognition.onerror = null;
+    phoneRecognition.stop();
+    phoneRecognition = null;
+  }
+  stopPhoneCallRecordingFallback();
+
+  if (phoneSilenceTimer) {
+    clearTimeout(phoneSilenceTimer);
+    phoneSilenceTimer = null;
+  }
+
+  // Hide Overlay
+  document.getElementById("phoneCallOverlay").classList.remove("active");
+  const phoneAIEl = document.getElementById("phoneAIResponse");
+  if (phoneAIEl) phoneAIEl.textContent = "AI response will appear here...";
+  const phoneTransEl = document.getElementById("phoneTranscript");
+  if (phoneTransEl) phoneTransEl.textContent = "Waiting for speech...";
+  setCallState("IDLE");
+  showToast("📞 Call Ended");
+}
+
+function togglePhoneMute() {
+  if (!isInCallMode) return;
+  isPhoneMuted = !isPhoneMuted;
+  const muteBtn = document.getElementById("phoneMuteBtn");
+
+  if (isPhoneMuted) {
+    if (muteBtn) {
+      muteBtn.classList.add("muted");
+      muteBtn.textContent = "🔇";
+    }
+    showToast("🎙️ Microphone Muted");
+    setCallState("MUTED");
+    
+    // Stop recognition/recording
+    if (phoneRecognition) {
+      phoneRecognition.onend = null;
+      phoneRecognition.stop();
+    }
+    stopPhoneCallRecordingFallback();
+  } else {
+    if (muteBtn) {
+      muteBtn.classList.remove("muted");
+      muteBtn.textContent = "🎙️";
+    }
+    showToast("🎙️ Microphone Active");
+    
+    // Restart listening
+    startListeningForCall();
+  }
+}
+
+function togglePhoneSpeaker() {
+  if (!isInCallMode) return;
+  isPhoneSpeakerActive = !isPhoneSpeakerActive;
+  const speakerBtn = document.getElementById("phoneSpeakerBtn");
+
+  if (isPhoneSpeakerActive) {
+    if (speakerBtn) {
+      speakerBtn.classList.add("active");
+      speakerBtn.classList.remove("off");
+    }
+    showToast("🔊 Speaker On");
+  } else {
+    if (speakerBtn) {
+      speakerBtn.classList.remove("active");
+      speakerBtn.classList.add("off");
+    }
+    showToast("🔇 Speaker Off");
+    window.speechSynthesis.cancel();
+    
+    // If AI was speaking, transition directly to listening now
+    if (callState === "SPEAKING" || callState === "GREETING") {
+      startListeningForCall();
+    }
+  }
+}
+
+function speakPhoneCallText(text) {
+  if (!('speechSynthesis' in window)) {
+    startListeningForCall();
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+
+  // Clean HTML/emojis/ids as in standard speakText
+  let cleanText = text.replace(/<[^>]*>/g, "")
+    .replace(/\bCUST-\d+\b/g, "")
+    .replace(/\bSTR-\d+\b/g, "")
+    .replace(/[⭐★☆]+/g, (match) => {
+      const count = [...match].length;
+      return ` ${count} star${count !== 1 ? "s" : ""} `;
+    });
+  
+  try {
+    cleanText = cleanText.replace(/\p{Emoji_Presentation}/gu, "");
+  } catch (e) {
+    cleanText = cleanText.replace(/[\u{1F300}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+  }
+  
+  cleanText = cleanText.replace(/https?:\/\/[^\s]+/g, "the Sainsbury's website")
+    .replace(/[*#`_\-–—•●✦]/g, " ")
+    .replace(/&bull;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleanText || !isPhoneSpeakerActive) {
+    startListeningForCall();
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = "en-GB";
+
+  // Select voice using the same standard fallback logic
+  const voices = window.speechSynthesis.getVoices();
+  const enVoices = voices.filter(v => v.lang.toLowerCase().startsWith("en"));
+  const findVoice = () => {
+    const naturalGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb") && v.name.toLowerCase().includes("natural"));
+    if (naturalGB) return naturalGB;
+    const naturalEn = enVoices.find(v => v.name.toLowerCase().includes("natural"));
+    if (naturalEn) return naturalEn;
+    const googleGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb") && v.name.toLowerCase().includes("google"));
+    if (googleGB) return googleGB;
+    const standardGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb"));
+    if (standardGB) return standardGB;
+    return enVoices[0] || voices[0];
+  };
+
+  const selectedVoice = findVoice();
+  if (selectedVoice) {
+    utterance.voice = selectedVoice;
+  }
+
+  utterance.onstart = () => {
+    if (isInCallMode && isPhoneSpeakerActive) {
+      setCallState("SPEAKING");
+    }
+  };
+
+  utterance.onend = () => {
+    currentUtterance = null;
+    if (isInCallMode) {
+      startListeningForCall();
+    }
+  };
+
+  utterance.onerror = (e) => {
+    console.error("SpeechSynthesisUtterance error:", e);
+    currentUtterance = null;
+    if (isInCallMode) {
+      startListeningForCall();
+    }
+  };
+
+  currentUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
+
+function resetPhoneSilenceTimer() {
+  if (phoneSilenceTimer) {
+    clearTimeout(phoneSilenceTimer);
+  }
+  phoneSilenceTimer = setTimeout(() => {
+    if (isInCallMode && callState === "LISTENING" && !isPhoneMuted) {
+      submitPhoneCallTurn();
+    }
+  }, SILENCE_DURATION);
+}
+
+function startListeningForCall() {
+  if (!isInCallMode || isPhoneMuted) return;
+
+  const transcriptPreview = document.getElementById("phoneTranscript");
+  if (transcriptPreview) {
+    transcriptPreview.textContent = "Listening...";
+  }
+  
+  const phoneAIEl = document.getElementById("phoneAIResponse");
+  if (phoneAIEl && callState === "SPEAKING") {
+    phoneAIEl.textContent = "Listening for your next question...";
+  }
+  
+  setCallState("LISTENING");
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    try {
+      if (phoneRecognition) {
+        phoneRecognition.abort();
+      }
+
+      phoneRecognition = new SpeechRecognition();
+      phoneRecognition.continuous = true;
+      phoneRecognition.interimResults = true;
+      phoneRecognition.lang = 'en-GB';
+
+      let finalTranscript = "";
+
+      phoneRecognition.onstart = () => {
+        resetPhoneSilenceTimer();
+      };
+
+      phoneRecognition.onresult = (event) => {
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const currentText = (finalTranscript + interimTranscript).trim();
+        if (currentText) {
+          transcriptPreview.textContent = currentText;
+
+          // Barge-in (Interruption Support)
+          if (callState === "SPEAKING" || callState === "GREETING") {
+            const wordCount = currentText.split(/\s+/).filter(Boolean).length;
+            if (wordCount >= 1) {
+              console.log("[CallMode] User interrupted AI speech. Stopping TTS...");
+              window.speechSynthesis.cancel();
+              currentUtterance = null;
+              setCallState("LISTENING");
+              
+              const phoneAIEl = document.getElementById("phoneAIResponse");
+              if (phoneAIEl) phoneAIEl.textContent = "Interrupted...";
+              
+              finalTranscript = "";
+              transcriptPreview.textContent = currentText;
+            }
+          }
+          
+          resetPhoneSilenceTimer();
+        }
+      };
+
+      phoneRecognition.onerror = (event) => {
+        console.error("Call SpeechRecognition error:", event.error);
+        if (event.error === 'not-allowed') {
+          showError("Microphone access blocked. Please enable it.");
+          togglePhoneMute(); // Mute automatically if blocked
+        }
+      };
+
+      phoneRecognition.onend = () => {
+        // Continuous listening: restart if still active and not muted
+        if (isInCallMode && callState === "LISTENING" && !isPhoneMuted) {
+          try {
+            phoneRecognition.start();
+          } catch (e) {
+            // Already started or busy
+          }
+        }
+      };
+
+      phoneRecognition.start();
+      return;
+    } catch (e) {
+      console.warn("Call native speech recognition failed to start, falling back to WAV:", e);
+    }
+  }
+
+  // Fallback to Server-Side continuous WAV recording
+  startPhoneCallRecordingFallback();
+}
+
+// Override turn submit for fallback method when silence fires
+// If we are in fallback mode and not native recognition
+function submitPhoneCallTurn() {
+  if (phoneRecognition) {
+    submitPhoneCallTurnNative();
+  } else {
+    submitPhoneCallTurnFallback();
+  }
+}
+
+async function submitPhoneCallTurnNative() {
+  if (!isInCallMode || isPhoneMuted) return;
+
+  const transcriptPreview = document.getElementById("phoneTranscript");
+  const rawText = transcriptPreview ? transcriptPreview.textContent : "";
+  const text = rawText.trim();
+
+  if (!text || text === "Listening..." || text === "Waiting for speech..." || text === "Processing...") {
+    resetPhoneSilenceTimer();
+    return;
+  }
+
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 2) {
+    transcriptPreview.textContent = "Listening...";
+    resetPhoneSilenceTimer();
+    return;
+  }
+
+  if (phoneRecognition) {
+    phoneRecognition.onend = null;
+    phoneRecognition.stop();
+  }
+
+  if (phoneSilenceTimer) {
+    clearTimeout(phoneSilenceTimer);
+    phoneSilenceTimer = null;
+  }
+
+  setCallState("PROCESSING");
+  transcriptPreview.textContent = "Processing...";
+
+  appendUserMessage(text);
+  conversationHistory.push({ role: "user", content: text });
+
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: text,
+        conversation_history: conversationHistory.slice(-20),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error ${response.status}`);
+    }
+
+    const data = await response.json();
+    appendAIMessage(data.reply, data.intent, data.suggestions);
+    conversationHistory.push({ role: "assistant", content: data.reply });
+
+    fetchCustomerData();
+
+    const phoneAIEl = document.getElementById("phoneAIResponse");
+    if (phoneAIEl) phoneAIEl.textContent = data.reply;
+
+    if (isPhoneSpeakerActive) {
+      speakPhoneCallText(data.reply);
+    } else {
+      startListeningForCall();
+    }
+  } catch (err) {
+    console.error("Phone call API request failed:", err);
+    const errorReply = "I'm having trouble connecting to my service. Could you repeat that?";
+    appendAIMessage(errorReply, "error");
+    
+    const phoneAIEl = document.getElementById("phoneAIResponse");
+    if (phoneAIEl) phoneAIEl.textContent = errorReply;
+
+    if (isPhoneSpeakerActive) {
+      speakPhoneCallText(errorReply);
+    } else {
+      startListeningForCall();
+    }
+  }
+}
+
+// ── Fallback continuous recording for Phone Call Mode ────────────────────────
+let phoneAudioContext = null;
+let phoneMicSource = null;
+let phoneScriptProcessor = null;
+let phoneMicStream = null;
+let phoneRecordBuffer = [];
+let silenceCheckInterval = null;
+
+async function startPhoneCallRecordingFallback() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    phoneMicStream = stream;
+
+    phoneAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    phoneMicSource = phoneAudioContext.createMediaStreamSource(stream);
+
+    const analyser = phoneAudioContext.createAnalyser();
+    analyser.fftSize = 512;
+    phoneMicSource.connect(analyser);
+
+    phoneScriptProcessor = phoneAudioContext.createScriptProcessor(4096, 1, 1);
+    phoneRecordBuffer = [];
+
+    phoneScriptProcessor.onaudioprocess = (e) => {
+      if (!isInCallMode || isPhoneMuted) return;
+      const channelData = e.inputBuffer.getChannelData(0);
+      phoneRecordBuffer.push(new Float32Array(channelData));
+    };
+
+    phoneMicSource.connect(phoneScriptProcessor);
+    phoneScriptProcessor.connect(phoneAudioContext.destination);
+
+    resetPhoneSilenceTimer();
+
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    let consecutiveSpeechFrames = 0;
+
+    silenceCheckInterval = requestAnimationFrame(function checkSilence() {
+      if (!isInCallMode || isPhoneMuted || phoneRecognition) return;
+
+      analyser.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const floatVal = (dataArray[i] - 128) / 128;
+        sum += floatVal * floatVal;
+      }
+      const rms = Math.sqrt(sum / bufferLength);
+
+      if (rms >= SILENCE_THRESHOLD) {
+        // Sound detected
+        if (callState === "LISTENING") {
+          resetPhoneSilenceTimer();
+        } else if (callState === "SPEAKING" || callState === "GREETING") {
+          // Barge-in check: user speaks over speaker
+          consecutiveSpeechFrames++;
+          if (consecutiveSpeechFrames >= 3) {
+            console.log("[CallMode Fallback] User speaking detected. stopping speech...");
+            window.speechSynthesis.cancel();
+            currentUtterance = null;
+            phoneRecordBuffer = []; // Clear buffer to start fresh recording
+            setCallState("LISTENING");
+            consecutiveSpeechFrames = 0;
+            resetPhoneSilenceTimer();
+          }
+        }
+      } else {
+        consecutiveSpeechFrames = 0;
+      }
+
+      silenceCheckInterval = requestAnimationFrame(checkSilence);
+    });
+
+  } catch (err) {
+    console.error("Fallback recording failed:", err);
+    showError("Could not start microphone recording fallback.");
+  }
+}
+
+function stopPhoneCallRecordingFallback() {
+  if (silenceCheckInterval) {
+    cancelAnimationFrame(silenceCheckInterval);
+    silenceCheckInterval = null;
+  }
+  if (phoneScriptProcessor) {
+    phoneScriptProcessor.disconnect();
+    phoneScriptProcessor = null;
+  }
+  if (phoneMicSource) {
+    phoneMicSource.disconnect();
+    phoneMicSource = null;
+  }
+  if (phoneAudioContext) {
+    phoneAudioContext.close();
+    phoneAudioContext = null;
+  }
+  if (phoneMicStream) {
+    phoneMicStream.getTracks().forEach(t => t.stop());
+    phoneMicStream = null;
+  }
+}
+
+async function submitPhoneCallTurnFallback() {
+  if (phoneRecordBuffer.length === 0) {
+    startListeningForCall();
+    return;
+  }
+
+  // Merge float buffers
+  let totalLength = 0;
+  for (let i = 0; i < phoneRecordBuffer.length; i++) {
+    totalLength += phoneRecordBuffer[i].length;
+  }
+  const mergedSamples = mergeBuffers(phoneRecordBuffer, totalLength);
+
+  const sampleRate = phoneAudioContext ? phoneAudioContext.sampleRate : 44100;
+  const targetSampleRate = 16000;
+  const downsampledSamples = downsampleBuffer(mergedSamples, sampleRate, targetSampleRate);
+
+  const blob = encodeWAV(downsampledSamples, targetSampleRate);
+  const formData = new FormData();
+  formData.append("audio", blob, "voice.wav");
+
+  const transcriptPreview = document.getElementById("phoneTranscript");
+  transcriptPreview.textContent = "Processing...";
+  setCallState("PROCESSING");
+
+  try {
+    const res = await fetch(`${API_BASE}/voice/transcribe`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(`Transcription failed (${res.status})`);
+
+    const { transcript } = await res.json();
+    const text = (transcript || "").trim();
+
+    if (text) {
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 2) {
+        transcriptPreview.textContent = "Listening...";
+        startListeningForCall();
+      } else {
+        appendUserMessage(text);
+        conversationHistory.push({ role: "user", content: text });
+
+        const response = await fetch(`${API_BASE}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: text,
+            conversation_history: conversationHistory.slice(-20),
+          }),
+        });
+
+        if (!response.ok) throw new Error("Chat call failed");
+        const data = await response.json();
+        appendAIMessage(data.reply, data.intent, data.suggestions);
+        conversationHistory.push({ role: "assistant", content: data.reply });
+        fetchCustomerData();
+
+        const phoneAIEl = document.getElementById("phoneAIResponse");
+        if (phoneAIEl) phoneAIEl.textContent = data.reply;
+
+        if (isPhoneSpeakerActive) {
+          speakPhoneCallText(data.reply);
+        } else {
+          startListeningForCall();
+        }
+      }
+    } else {
+      startListeningForCall();
+    }
+  } catch (err) {
+    console.error("Fallback turn submission failed:", err);
+    const phoneAIEl = document.getElementById("phoneAIResponse");
+    if (phoneAIEl) phoneAIEl.textContent = "I encountered an error. Please try again.";
+    startListeningForCall();
+  }
 }
 
 // Preload voices as early as possible so they are immediately available on speech request
