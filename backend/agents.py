@@ -339,20 +339,30 @@ class AgentRouter:
         project_endpoint = os.getenv("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "").strip()
         tenant_id        = os.getenv("AZURE_TENANT_ID", "").strip() or None
 
+        is_serverless = os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+
         # ── Azure AI Agents client (primary) ─────────────────────────────────
         if project_endpoint:
             try:
-                credential = AzureCliCredential(tenant_id=tenant_id)
+                if is_serverless:
+                    from azure.identity import DefaultAzureCredential
+                    credential = DefaultAzureCredential()
+                    cred_name = "DefaultAzureCredential"
+                else:
+                    credential = AzureCliCredential(tenant_id=tenant_id)
+                    cred_name = "AzureCliCredential"
                 self._agents_client = AgentsClient(
                     endpoint=project_endpoint,
                     credential=credential,
                 )
-                print("[AgentRouter] AgentsClient initialised via AzureCliCredential.")
+                print(f"[AgentRouter] AgentsClient initialised via {cred_name}.")
             except Exception as e:
                 print(f"[AgentRouter] AgentsClient init failed: {e}")
 
         # ── AzureOpenAI client (fallback for classification/merge) ───────────
-        if project_endpoint and not self._openai_client:
+        # On serverless (Vercel), we skip AIProjectClient (which requires AzureCliCredential)
+        # and directly initialize AzureOpenAI with the API key for guaranteed fallback.
+        if project_endpoint and not is_serverless and not self._openai_client:
             try:
                 from azure.ai.projects import AIProjectClient
                 credential = AzureCliCredential(tenant_id=tenant_id)
@@ -365,15 +375,15 @@ class AgentRouter:
                 print(f"[AgentRouter] AIProjectClient OpenAI init failed: {e}")
 
         if not self._openai_client and api_key and openai_endpoint:
-            base = openai_endpoint.rstrip("/")
-            if base.endswith("/v1"):
-                base = base[:-3]
+            from urllib.parse import urlparse
+            parsed = urlparse(openai_endpoint)
+            base = f"{parsed.scheme}://{parsed.netloc}"
             self._openai_client = AzureOpenAI(
                 api_key=api_key,
                 azure_endpoint=base,
                 api_version="2024-10-21",
             )
-            print("[AgentRouter] AzureOpenAI client initialised via API key (fallback).")
+            print(f"[AgentRouter] AzureOpenAI client initialised via API key on base: {base}")
 
     def _resolve_agent_ids(self) -> None:
         """Map Foundry agent names (from .env) to their runtime asst_* IDs."""
