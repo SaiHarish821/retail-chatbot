@@ -67,6 +67,7 @@ class ChatResponse(BaseModel):
     reply: str
     intent: str
     sources: list[str] = []
+    suggestions: list[str] = []
 
 
 class SaveResultsRequest(BaseModel):
@@ -128,6 +129,7 @@ async def chat(request: ChatRequest):
             reply=result["reply"],
             intent=result["intent"],
             sources=result.get("sources", []),
+            suggestions=result.get("suggestions", []),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

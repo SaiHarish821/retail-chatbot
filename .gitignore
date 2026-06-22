@@ -90,3 +90,4 @@ yarn.lock
 *.crt
 secrets/
 credentials.json
+.vercel

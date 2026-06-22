@@ -176,6 +176,9 @@ async function sendMessage(text) {
   if (!text || isThinking) return;
   hideError();
 
+  // Remove all previous active suggestion containers
+  document.querySelectorAll(".active-suggestions").forEach(el => el.remove());
+
   // Remove welcome card after first message
   const welcome = document.getElementById("welcomeCard");
   if (welcome) welcome.remove();
@@ -203,7 +206,7 @@ async function sendMessage(text) {
 
     const data = await response.json();
     removeTyping(typingId);
-    appendAIMessage(data.reply, data.intent);
+    appendAIMessage(data.reply, data.intent, data.suggestions);
     conversationHistory.push({ role: "assistant", content: data.reply });
 
     if (isTtsEnabled) {
@@ -244,20 +247,41 @@ function appendUserMessage(text) {
   scrollToBottom();
 }
 
-function appendAIMessage(text, intent) {
+function appendAIMessage(text, intent, suggestions = []) {
   const intentIcon = intentToIcon(intent);
   const intentLabel = intent ? intent.replace(/_/g, " ") : "";
 
+  // Remove any previous active suggestion containers
+  document.querySelectorAll(".active-suggestions").forEach(el => el.remove());
+
   const div = document.createElement("div");
   div.className = "message";
+
+  let suggestionsHtml = "";
+  if (suggestions && suggestions.length > 0) {
+    suggestionsHtml = `
+      <div class="suggestion-chips active-suggestions" style="margin-top: 8px;">
+        ${suggestions.map((s, idx) => `<button class="chip dynamic-suggestion-chip" style="--chip-idx: ${idx};" data-prompt="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
+      </div>
+    `;
+  }
+
   div.innerHTML = `
     <div class="message-avatar ai-avatar">✦</div>
     <div>
       ${intent && intent !== "error" ? `<div class="intent-tag">${intentIcon} ${intentLabel}</div>` : ""}
       <div class="message-bubble ai-bubble">${formatAIText(text)}</div>
+      ${suggestionsHtml}
       <div class="message-meta">${now()} · <span class="msg-speak-btn" title="Read message" style="cursor:pointer; opacity:0.6; transition:opacity 0.2s;">🔊 Speak</span></div>
     </div>
   `;
+
+  // Bind click event to dynamic suggestion chips
+  div.querySelectorAll(".dynamic-suggestion-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      sendMessage(chip.dataset.prompt);
+    });
+  });
 
   const speakBtn = div.querySelector(".msg-speak-btn");
   if (speakBtn) {
@@ -376,21 +400,110 @@ function scrollToBottom() {
 }
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
+// ── Voice ─────────────────────────────────────────────────────────────────────
+let recognition = null;
+let silenceTimer = null;
+const SILENCE_DURATION = 2500; // 2.5 seconds silence detection
+
+function resetSilenceTimer() {
+  if (silenceTimer) {
+    clearTimeout(silenceTimer);
+  }
+  silenceTimer = setTimeout(() => {
+    console.log("Auto-submitting due to 2.5 seconds of silence");
+    if (isRecording) {
+      stopRecording(true);
+    }
+  }, SILENCE_DURATION);
+}
+
 async function toggleRecording() {
   if (isRecording) {
-    stopRecording();
+    stopRecording(false); // Manual stop preserves text without auto-submit
   } else {
     await startRecording();
   }
 }
 
 async function startRecording() {
+  hideError();
+  chatInput.value = "";
+  chatInput.placeholder = "Listening...";
+  
+  // Try native Web Speech API first
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    try {
+      if (recognition) {
+        recognition.abort();
+      }
+      
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-GB';
+      
+      let finalTranscript = "";
+      
+      recognition.onstart = () => {
+        isRecording = true;
+        voiceBtn.classList.add("recording");
+        voiceBtn.title = "Stop recording";
+        showToast("🎙 Listening... Speak now");
+        resetSilenceTimer();
+      };
+      
+      recognition.onresult = (event) => {
+        resetSilenceTimer();
+        let interimTranscript = "";
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        const currentText = (finalTranscript + interimTranscript).trim();
+        if (currentText) {
+          chatInput.value = currentText;
+          autoResizeTextarea();
+          sendBtn.disabled = false;
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === 'not-allowed') {
+          showError("Microphone access blocked. Please enable it in browser settings.");
+          stopRecording(false);
+        }
+      };
+      
+      recognition.onend = () => {
+        if (isRecording) {
+          stopRecording(false);
+        }
+      };
+      
+      recognition.start();
+      return;
+    } catch (e) {
+      console.warn("Web Speech API failed to start, falling back to server-side WAV recording:", e);
+    }
+  }
+  
+  // Fallback to Server-Side WAV Recording using AudioContext and Azure Speech SDK
+  await startRecordingFallback();
+}
+
+async function startRecordingFallback() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micStream = stream;
     
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
     micSource = audioContext.createMediaStreamSource(stream);
     
     // Silence detection analyser
@@ -415,12 +528,13 @@ async function startRecording() {
     voiceBtn.classList.add("recording");
     voiceBtn.title = "Stop recording";
     showToast("🎙 Recording… speak now");
+    resetSilenceTimer();
     
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
     
     function checkSilence() {
-      if (!isRecording) return;
+      if (!isRecording || recognition) return;
       
       analyser.getByteTimeDomainData(dataArray);
       
@@ -432,18 +546,10 @@ async function startRecording() {
       const rms = Math.sqrt(sum / bufferLength);
       
       if (rms < SILENCE_THRESHOLD) {
-        if (!silenceTimer) {
-          silenceTimer = setTimeout(() => {
-            console.log("Auto-stopping recording due to 5 seconds of silence");
-            stopRecording();
-            showToast("✓ Auto-stopped (silence detected)");
-          }, SILENCE_DURATION);
-        }
+        // Silence detected
       } else {
-        if (silenceTimer) {
-          clearTimeout(silenceTimer);
-          silenceTimer = null;
-        }
+        // Sound detected, reset silence timer
+        resetSilenceTimer();
       }
       
       requestAnimationFrame(checkSilence);
@@ -457,7 +563,7 @@ async function startRecording() {
   }
 }
 
-function stopRecording() {
+function stopRecording(shouldSubmit = false) {
   if (!isRecording) return;
   isRecording = false;
   
@@ -466,6 +572,33 @@ function stopRecording() {
     silenceTimer = null;
   }
   
+  // Stop Web Speech API
+  if (recognition) {
+    recognition.onend = null;
+    recognition.stop();
+    recognition = null;
+    
+    const text = chatInput.value.trim();
+    chatInput.placeholder = "Ask about orders, refunds, deliveries, stores…";
+    voiceBtn.classList.remove("recording");
+    voiceBtn.title = "Voice input";
+    
+    if (shouldSubmit && text) {
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 2) {
+        showToast("Accidental input ignored (less than 2 words)");
+        chatInput.value = "";
+        sendBtn.disabled = true;
+      } else {
+        chatInput.placeholder = "Processing...";
+        showToast("⚙️ Processing speech...");
+        sendMessage(text);
+      }
+    }
+    return;
+  }
+  
+  // Stop Fallback WAV recording
   if (scriptProcessor) {
     scriptProcessor.disconnect();
     scriptProcessor = null;
@@ -488,11 +621,14 @@ function stopRecording() {
   voiceBtn.classList.remove("recording");
   voiceBtn.title = "Voice input";
   
-  handleRecordingStop();
+  handleRecordingStopFallback(shouldSubmit);
 }
 
-async function handleRecordingStop() {
-  if (recordBuffer.length === 0) return;
+async function handleRecordingStopFallback(shouldSubmit) {
+  if (recordBuffer.length === 0) {
+    chatInput.placeholder = "Ask about orders, refunds, deliveries, stores…";
+    return;
+  }
 
   // Merge float buffers
   let totalLength = 0;
@@ -511,6 +647,7 @@ async function handleRecordingStop() {
   const formData = new FormData();
   formData.append("audio", blob, "voice.wav");
 
+  chatInput.placeholder = "Processing...";
   showToast("⚙️ Transcribing…");
 
   try {
@@ -522,17 +659,32 @@ async function handleRecordingStop() {
     if (!res.ok) throw new Error(`Transcription failed (${res.status})`);
 
     const { transcript } = await res.json();
-    if (transcript) {
-      chatInput.value = transcript;
-      autoResizeTextarea();
-      sendBtn.disabled = false;
-      chatInput.focus();
-      showToast("✓ Transcribed – press Send");
+    const text = (transcript || "").trim();
+    
+    chatInput.placeholder = "Ask about orders, refunds, deliveries, stores…";
+    
+    if (text) {
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 2) {
+        showToast("Accidental input ignored (less than 2 words)");
+        chatInput.value = "";
+        sendBtn.disabled = true;
+      } else {
+        chatInput.value = text;
+        autoResizeTextarea();
+        sendBtn.disabled = false;
+        if (shouldSubmit) {
+          sendMessage(text);
+        } else {
+          showToast("✓ Transcribed – press Send");
+        }
+      }
     } else {
       showToast("No speech detected. Try again.");
     }
   } catch (err) {
     showError("Voice transcription failed: " + err.message);
+    chatInput.placeholder = "Ask about orders, refunds, deliveries, stores…";
   }
 }
 

@@ -1602,6 +1602,129 @@ class AgentRouter:
 
         return self._validate_and_sanitize_response(query, reply)
 
+    async def _generate_suggestions(
+        self, message: str, reply: str, intent: str, history: list[dict]
+    ) -> list[str]:
+        """
+        Dynamically generates 3-5 follow-up suggestions based on the last message,
+        AI reply, intent, and history context.
+        Falls back to static lists on failure.
+        """
+        fallback_map = {
+            "order": [
+                "Track my order",
+                "Can I see my recent orders?",
+                "How do I cancel my order?",
+                "Contact customer support"
+            ],
+            "delivery": [
+                "Track my delivery",
+                "Change delivery slot",
+                "Update delivery address",
+                "Contact the driver",
+                "Cancel delivery"
+            ],
+            "refund": [
+                "Check refund status",
+                "How long does a refund take?",
+                "Request a replacement",
+                "Show refund history",
+                "Contact support"
+            ],
+            "store": [
+                "What are the opening hours?",
+                "Check product stock levels",
+                "Show active promotions",
+                "Find nearest store"
+            ],
+            "general": [
+                "What can you help me with?",
+                "Show me suggestion chips",
+                "How do I track orders?"
+            ]
+        }
+        
+        default_suggestions = fallback_map.get(intent, fallback_map["general"])
+        
+        if not self._openai_client:
+            return default_suggestions
+            
+        try:
+            deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+            history_snippet = "\n".join(
+                f"{t['role'].upper()}: {t['content']}"
+                for t in history[-4:]
+            )
+            
+            system_prompt = (
+                "You are a suggested follow-up generator for a UK supermarket chatbot (Sainsbury's).\n"
+                "Given the conversation context, the last user message, and the assistant's reply, "
+                "generate a JSON list of exactly 3 to 5 realistic, natural follow-up questions or suggested actions "
+                "the user is most likely to ask or do next.\n\n"
+                "Rules:\n"
+                "- Make them highly contextual and relevant to the assistant's response.\n"
+                "- Do not show generic questions. Be specific (refer to specific products, orders, delivery details, or locations mentioned in the response if applicable).\n"
+                "- Write them from the perspective of the user (e.g., 'Is it available for delivery?', 'Are there any promotions?', 'Cancel my delivery').\n"
+                "- Keep them brief (usually 3-7 words per question).\n"
+                "- Do not include duplicate or highly similar suggestions.\n"
+                "- Return ONLY a valid JSON string array. Example: [\"question 1\", \"question 2\", \"question 3\"]\n"
+                "No explanation, no markdown formatting."
+            )
+            
+            user_input = (
+                f"CONVERSATION HISTORY:\n{history_snippet}\n\n"
+                f"LAST USER MESSAGE: {message}\n\n"
+                f"ASSISTANT REPLY:\n{reply}\n\n"
+                f"INTENT CATEGORY: {intent}"
+            )
+            
+            loop = asyncio.get_event_loop()
+            
+            def call_completion():
+                return self._openai_client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_input}
+                    ],
+                    max_tokens=150,
+                    temperature=0.0,
+                )
+                
+            resp = await loop.run_in_executor(None, call_completion)
+            content = resp.choices[0].message.content.strip()
+            
+            # Strip markdown JSON fences if present
+            clean = re.sub(r"^```(?:json)?\n?", "", content)
+            clean = re.sub(r"\n?```$", "", clean)
+            suggestions = json.loads(clean)
+            
+            if isinstance(suggestions, list) and len(suggestions) >= 2:
+                # Deduplicate and limit to 3-5 suggestions
+                seen = set()
+                deduped = []
+                for s in suggestions:
+                    s_clean = s.strip()
+                    if s_clean and s_clean.lower() not in seen:
+                        seen.add(s_clean.lower())
+                        deduped.append(s_clean)
+                if 3 <= len(deduped) <= 5:
+                    return deduped
+                elif len(deduped) > 5:
+                    return deduped[:5]
+                elif len(deduped) > 0:
+                    for fallback in default_suggestions:
+                        if len(deduped) >= 3:
+                            break
+                        if fallback.lower() not in seen:
+                            deduped.append(fallback)
+                            seen.add(fallback.lower())
+                    return deduped
+        except Exception as e:
+            print(f"[AgentRouter] Suggestion generation failed: {e}")
+            
+        return default_suggestions
+
     # ─────────────────────────────────────────────────────────────────────────
     # Public Handler – Main Orchestration Entry Point
     # ─────────────────────────────────────────────────────────────────────────
@@ -1637,10 +1760,12 @@ class AgentRouter:
             if resolution["type"] == "clarification":
                 reply = resolution["response"]
                 validated = await self._run_validation_layer(message, reply)
+                suggestions = await self._generate_suggestions(message, validated, "store", history)
                 return {
-                    "reply":   validated,
-                    "intent":  "store",
-                    "sources": ["context_resolver_clarification"],
+                    "reply":       validated,
+                    "intent":      "store",
+                    "sources":     ["context_resolver_clarification"],
+                    "suggestions": suggestions,
                 }
             else:
                 message = resolution["query"]
@@ -1662,10 +1787,12 @@ class AgentRouter:
                         history=history,
                     )
                     validated = await self._run_validation_layer(message, reply)
+                    suggestions = await self._generate_suggestions(message, validated, "general", history)
                     return {
-                        "reply":   validated,
-                        "intent":  "general",
-                        "sources": ["general_assistant_agent"],
+                        "reply":       validated,
+                        "intent":      "general",
+                        "sources":     ["general_assistant_agent"],
+                        "suggestions": suggestions,
                     }
                 except Exception as e:
                     print(f"[AgentRouter] General-Assistant-Agent call failed: {e}")
@@ -1678,10 +1805,12 @@ class AgentRouter:
                 "For general knowledge questions I'm afraid I'm not the right tool — "
                 "but feel free to ask me anything retail-related! 😊"
             )
+            suggestions = await self._generate_suggestions(message, decline, "general", history)
             return {
-                "reply":   decline,
-                "intent":  "general",
-                "sources": ["polite_decline"],
+                "reply":       decline,
+                "intent":      "general",
+                "sources":     ["polite_decline"],
+                "suggestions": suggestions,
             }
 
         # ── 4. Retail: product-info DB lookup first ───────────────────────────
@@ -1689,10 +1818,12 @@ class AgentRouter:
         if db_result:
             print("[AgentRouter] Answered from product catalog DB directly.")
             validated = await self._run_validation_layer(message, db_result)
+            suggestions = await self._generate_suggestions(message, validated, "store", history)
             return {
-                "reply":   validated,
-                "intent":  "store",
-                "sources": ["product_catalog_db"],
+                "reply":       validated,
+                "intent":      "store",
+                "sources":     ["product_catalog_db"],
+                "suggestions": suggestions,
             }
 
         # ── 5. Supervisor decomposition (Foundry-driven routing) ─────────────
@@ -1802,8 +1933,10 @@ class AgentRouter:
 
         # ── 9. Return result ──────────────────────────────────────────────────
         primary_intent = tasks[0]["agent"] if tasks else "order"
+        suggestions = await self._generate_suggestions(message, validated, primary_intent, history)
         return {
-            "reply":   validated,
-            "intent":  primary_intent,
-            "sources": sources,
+            "reply":       validated,
+            "intent":      primary_intent,
+            "sources":     sources,
+            "suggestions": suggestions,
         }

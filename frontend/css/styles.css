@@ -757,3 +757,15 @@ body {
   color: #fff;
   box-shadow: 0 2px 8px rgba(249,115,22,0.3);
 }
+
+/* ── Dynamic Suggestion Chips Micro-Animations ──────────────── */
+@keyframes chip-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dynamic-suggestion-chip {
+  opacity: 0;
+  animation: chip-fade-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: calc(var(--chip-idx, 0) * 0.06s);
+}
