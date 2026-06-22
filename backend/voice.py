@@ -83,12 +83,11 @@ def _synthesize_sync(text: str, speech_key: str, region: str) -> bytes:
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=region)
     speech_config.speech_synthesis_voice_name = "en-GB-SoniaNeural"
 
-    # Use empty AudioConfig to synthesize to an in-memory stream instead of the default speaker
-    audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=False)
-
+    # Pass audio_config=None to synthesize to memory stream (result.audio_data)
+    # without trying to play to a speaker (which causes errors on servers)
     synthesizer = speechsdk.SpeechSynthesizer(
         speech_config=speech_config,
-        audio_config=audio_config,
+        audio_config=None,
     )
     result = synthesizer.speak_text_async(text).get()
 
