@@ -40,10 +40,14 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 MOCK_DIR = Path(__file__).parent.parent / "mock_data"
 
 # Initialize and seed database
-from database import init_db, seed_db, load_db_customer_data
-init_db()
-seed_db()
+try:
+    from database import init_db, seed_db
+    init_db()
+    seed_db()
+except Exception as e:
+    print(f"Database initialization skipped (running in read-only environment): {e}")
 
+from database import load_db_customer_data
 CUSTOMER_DATA = load_db_customer_data()
 
 # ─── Agent router (singleton) ─────────────────────────────────────────────
@@ -135,7 +139,11 @@ async def save_results(request: SaveResultsRequest):
     Save test runner results to a file for analysis.
     """
     try:
-        results_file = Path(__file__).parent.parent / "mock_data" / "test_results.json"
+        if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+            results_file = Path("/tmp") / "test_results.json"
+        else:
+            results_file = Path(__file__).parent.parent / "mock_data" / "test_results.json"
+            
         with open(results_file, "w", encoding="utf-8") as f:
             json.dump({
                 "stats": request.stats,

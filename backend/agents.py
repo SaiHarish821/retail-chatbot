@@ -190,6 +190,13 @@ class AgentRouter:
         "president", "prime minister", "war", "country", "planet", "space",
     ])
 
+    _ACKNOWLEDGEMENTS: frozenset = frozenset([
+        "yes", "yeah", "yep", "yup", "sure", "okay", "ok", "alright", "sounds good",
+        "go ahead", "continue", "next", "show me", "tell me more", "more",
+        "thats fine", "that's fine", "do it", "proceed", "exactly", "correct", "right",
+        "this one", "that one", "first one", "second one"
+    ])
+
     def __init__(self, customer_data: dict):
         self.customer_data = customer_data
         self.context = build_context_block(customer_data)
@@ -928,6 +935,163 @@ class AgentRouter:
         # 4. Safe default
         return "retail"
 
+    def _classify_intent(self, message: str, history: list[dict]) -> str:
+        """
+        Classifies the intent of the message in the context of the conversation history.
+        Classification order/priority:
+        1. Is this a follow-up to the previous assistant message? ('follow_up')
+        2. Is this a clarification or confirmation? ('clarification_confirmation')
+        3. Is this a new retail request? ('new_retail')
+        4. Is this a new general knowledge question? ('new_general')
+        """
+        # First check if there is conversation history
+        assistant_turns = [t for t in history if t.get("role") == "assistant"]
+        if not assistant_turns:
+            # No history: must be a new request
+            domain = self._classify_domain(message, history)
+            return "new_retail" if domain == "retail" else "new_general"
+
+        # Check local exact-match acknowledgements list first
+        cleaned = re.sub(r'[^\w\s]', '', message).lower().strip()
+        if cleaned in self._ACKNOWLEDGEMENTS:
+            return "clarification_confirmation"
+
+        # If LLM client is available, run intent classification using LLM
+        if self._openai_client:
+            deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+            try:
+                history_snippet = "\n".join(
+                    f"{t['role'].upper()}: {t['content']}"
+                    for t in history[-5:]
+                )
+                res = self._openai_client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an intent classifier for a Sainsbury's retail chatbot.\n"
+                                "Your task is to analyze the conversation history and the user's current message, "
+                                "and classify the intent of the user's message.\n\n"
+                                "Classification Categories (in order of priority):\n"
+                                "1. 'follow_up': The user is asking a follow-up question or making a request that "
+                                "directly builds upon, continues, or refers to the previous assistant message "
+                                "(e.g., asking 'what is its price?', 'is it available there?', 'why?', 'tell me more details').\n"
+                                "2. 'clarification_confirmation': The user is providing a confirmation, acknowledgement, "
+                                "or selection in response to a choice or question posed by the assistant "
+                                "(e.g., 'yes', 'yeah', 'yep', 'yup', 'no', 'sure', 'ok', 'that one', 'first one', 'delivery please').\n"
+                                "3. 'new_retail': The user is starting a new request or asking a new question about grocery "
+                                "products, orders, deliveries, refunds, stores, stock, promotions, nutrition labels, "
+                                "allergens, or anything Sainsbury's sells or offers.\n"
+                                "4. 'new_general': The user is asking a new general knowledge question unrelated to "
+                                "Sainsbury's retail (e.g., world history, science, sports, programming, politics, etc.).\n\n"
+                                "Respond with exactly one word: follow_up, clarification_confirmation, new_retail, or new_general."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nUSER MESSAGE: {message}"
+                        }
+                    ],
+                    max_tokens=10,
+                    temperature=0.0,
+                )
+                label = res.choices[0].message.content.strip().lower()
+                # Clean up punctuation from label
+                label = re.sub(r'[^\w\-]', '', label)
+                if label in ("follow_up", "clarification_confirmation", "new_retail", "new_general"):
+                    return label
+            except Exception as e:
+                print(f"[AgentRouter] Intent classification LLM call failed: {e}")
+
+        # Fallback to domain classification
+        domain = self._classify_domain(message, history)
+        return "new_retail" if domain == "retail" else "new_general"
+
+    async def _resolve_context(self, message: str, history: list[dict]) -> dict[str, Any]:
+        """
+        Resolves a follow-up or clarification message using the conversation history.
+
+        Returns a dict:
+        - {"type": "clarification", "response": "..."} to ask a targeted clarification directly.
+        - {"type": "resolved_query", "query": "..."} to route a standalone resolved query to the Supervisor.
+        """
+        # Find the last assistant message
+        assistant_turns = [t for t in history if t.get("role") == "assistant"]
+        prev_assistant = assistant_turns[-1]["content"] if assistant_turns else ""
+
+        if self._openai_client:
+            deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+            try:
+                history_snippet = "\n".join(
+                    f"{t['role'].upper()}: {t['content']}"
+                    for t in history[-5:]
+                )
+                system_prompt = (
+                    "You are the Context Resolver for a Sainsbury's retail chatbot.\n"
+                    "The user has sent a follow-up or clarification message to the previous assistant response.\n\n"
+                    f"Previous Assistant Response:\n\"{prev_assistant}\"\n\n"
+                    "Your job is to analyze the history and decide between two output types:\n\n"
+                    "1. CLARIFICATION:\n"
+                    "If the previous assistant response offered multiple choices or actions "
+                    "(e.g., 'delivery or Click & Collect', 'directions or online ordering', 'directions or ordering online'), "
+                    "AND the user's current reply is a generic confirmation/acknowledgement ('yes', 'yeah', 'ok', 'sure', etc.) "
+                    "that does not specify which choice they want: "
+                    "You MUST generate a targeted clarification response asking the user to specify their choice.\n"
+                    "Rules for clarification response:\n"
+                    "- Do NOT make assumptions about which option they want.\n"
+                    "- Respond politely and directly ask which option they prefer.\n"
+                    "- Examples:\n"
+                    "  - 'Certainly. Which option would you like—Home Delivery or Click & Collect?'\n"
+                    "  - 'Happy to help. Would you like directions to the nearest store or would you like to place an online order?'\n"
+                    "  - 'Sure! Would you like directions to the nearest store or would you like to order the tea online?'\n"
+                    "Output JSON format:\n"
+                    "{\n"
+                    "  \"type\": \"clarification\",\n"
+                    "  \"response\": \"<your targeted clarification response>\"\n"
+                    "}\n\n"
+                    "2. RESOLVED QUERY:\n"
+                    "If the user's message is a follow-up question, or if they have specified their choice "
+                    "(e.g., 'first one', 'delivery', 'online'), or if only one option was offered: "
+                    "Resolve the user's message into a standalone, complete, detail-rich retail search/intent query "
+                    "that combines the current user message with all necessary details from the history (like product name, "
+                    "order ID, store location) so it can be processed independently by the supervisor/specialist agents.\n"
+                    "Output JSON format:\n"
+                    "{\n"
+                    "  \"type\": \"resolved_query\",\n"
+                    "  \"query\": \"<standalone resolved retail query>\"\n"
+                    "}\n\n"
+                    "Return ONLY valid JSON. No explanations, no markdown formatting, no code blocks."
+                )
+
+                res = self._openai_client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nUSER MESSAGE: {message}"}
+                    ],
+                    max_tokens=150,
+                    temperature=0.0,
+                )
+                content = res.choices[0].message.content.strip()
+                # Strip markdown JSON fences if present
+                clean = re.sub(r"^```(?:json)?\n?", "", content)
+                clean = re.sub(r"\n?```$", "", clean)
+                data = json.loads(clean)
+                if isinstance(data, dict) and "type" in data:
+                    if data["type"] == "clarification" and "response" in data:
+                        return data
+                    if data["type"] == "resolved_query" and "query" in data:
+                        return data
+            except Exception as e:
+                print(f"[AgentRouter] Context resolution LLM call failed: {e}")
+
+        # Fallback if LLM fails or returns invalid response:
+        return {
+            "type": "resolved_query",
+            "query": message
+        }
+
     # ─────────────────────────────────────────────────────────────────────────
     # Product DB Lookup (for product-info questions)
     # ─────────────────────────────────────────────────────────────────────────
@@ -1437,25 +1601,47 @@ class AgentRouter:
         Orchestrates the full request lifecycle:
 
         1.  Reload customer context from DB (fresh per request)
-        2.  Classify domain: retail vs general
-        3.  General → route to General-Assistant-Agent (or polite decline)
-        4.  Retail → check DB for product-info questions
-        5.  Product found in DB → return catalog card directly
-        6.  Otherwise → Supervisor-Agent decomposes → specialist agents invoked
-        7.  Merge replies (via Supervisor or local join)
-        8.  Validate & sanitize output
-        9.  Return {reply, intent, sources}
+        2.  Resolve follow-up intent and context if applicable
+        3.  Classify domain: retail vs general
+        4.  General → route to General-Assistant-Agent (or polite decline)
+        5.  Retail → check DB for product-info questions
+        6.  Product found in DB → return catalog card directly
+        7.  Otherwise → Supervisor-Agent decomposes → specialist agents invoked
+        8.  Merge replies (via Supervisor or local join)
+        9.  Validate & sanitize output
+        10. Return {reply, intent, sources}
         """
         # ── 1. Refresh context ────────────────────────────────────────────────
         customer_data = self._load_customer_data()
         self.context  = build_context_block(customer_data)
 
-        # ── 2. Domain classification ──────────────────────────────────────────
-        domain = self._classify_domain(message, history)
-        print(f"[AgentRouter] Domain: {domain} | Message: {message[:80]}")
+        # ── 2. Follow-up Intent Resolution ────────────────────────────────────
+        intent = self._classify_intent(message, history)
+        print(f"[AgentRouter] Intent: {intent} | Message: {message[:80]}")
 
-        # ── 3. General-knowledge questions ────────────────────────────────────
-        if domain == "general":
+        is_follow_up = intent in ("follow_up", "clarification_confirmation")
+        if is_follow_up:
+            # ── 3. Context Resolution ──────────────────────────────────────────
+            resolution = await self._resolve_context(message, history)
+            print(f"[AgentRouter] Context Resolution: {resolution}")
+            if resolution["type"] == "clarification":
+                reply = resolution["response"]
+                validated = await self._run_validation_layer(message, reply)
+                return {
+                    "reply":   validated,
+                    "intent":  "store",
+                    "sources": ["context_resolver_clarification"],
+                }
+            else:
+                message = resolution["query"]
+                print(f"[AgentRouter] Standalone resolved message: {message}")
+
+        # ── 4. Domain classification ──────────────────────────────────────────
+        domain = self._classify_domain(message, history)
+        print(f"[AgentRouter] Domain: {domain} | Resolved Message: {message[:80]}")
+
+        # ── 5. General-knowledge questions ────────────────────────────────────
+        if domain == "general" or (intent == "new_general" and not is_follow_up):
             general_id = self._agent_ids.get("general")
             if general_id and self._agents_client:
                 try:

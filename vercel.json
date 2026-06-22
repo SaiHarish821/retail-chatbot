@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/static/(.*)",
+      "destination": "/frontend/$1"
+    },
+    {
+      "source": "/(customer|inventory|chat|api/save_results|voice/transcribe|health)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/frontend/index.html"
+    }
+  ]
+}

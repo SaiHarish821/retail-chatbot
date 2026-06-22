@@ -1,8 +1,8 @@
 {
   "stats": {
     "total": 50,
-    "passed": 5,
-    "failed": 0
+    "passed": 32,
+    "failed": 18
   },
   "results": [
     {
@@ -39,27 +39,27 @@
       "id": "004",
       "category": "Product Search - Organic Dairy",
       "expected_agent": "Store Agent",
-      "status": "pass",
+      "status": "fail",
       "user_turns": [
         "Do you sell organic milk? I prefer whole milk if possible. And is it British sourced?"
       ],
-      "logs": ""
+      "logs": "User: \"Do you sell organic milk? I prefer whole milk if possible. And is it British sourced?\"\nAssistant (intent: \ud83c\udfea store): \"Yes, we do sell Organic Whole Milk (2L), and it is British-sourced. It is available for \u00a31.89. You can find it at the following nearby stores:\n\n1. Sainsbury's Camden Local (2.61 miles away)\n\u2022 Address: 216 Camden High St, Camden, London NW1 8QR\n\u2022 Hours: Mon-Sat: 06:00\u201323:00, Sun: 07:00\u201322:00\n\n2. Sainsbury's Islington Superstore (2.83 miles away)\n\u2022 Address: 48 Liverpool Road, Islington, London N1 0PL\n\u2022 Hours: Mon-Sat: 07:00\u201323:00, Sun: 11:00\u201317:00\n\n3. Sainsbury's Stratford (6.80 miles away)\n\u2022 Address: The Arcade, Stratford Centre, London E15 1XQ\n\u2022 Hours: Mon-Sat: 07:00\u201322:00, Sun: 10:00\u201316:00\n\nLet me know if you'd like further assistance!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "005",
       "category": "Aisle Lookup - Chilled Products",
       "expected_agent": "Store Agent",
-      "status": "pass",
+      "status": "fail",
       "user_turns": [
         "Where would I find the Greek yoghurt and cheddar cheese in the store? I'm at your Islington Superstore right now."
       ],
-      "logs": ""
+      "logs": "User: \"Where would I find the Greek yoghurt and cheddar cheese in the store? I'm at your Islington Superstore right now.\"\nAssistant (intent: \ud83c\udfea store): \"Jamie, you can find both the Greek yoghurt and cheddar cheese in the chilled section of the Sainsbury's Islington Superstore. They are located in Aisle 4. Let me know if you need further assistance!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "006",
       "category": "Promotion Eligibility - Gold Member",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I'm a Gold member. Is there any exclusive discount I can use right now? My name is Jamie Thornton and my account should show my tier."
       ],
@@ -69,7 +69,7 @@
       "id": "007",
       "category": "Promotion Query - BOGO Offer",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I heard there's a buy one get one free deal on something. What products does that apply to and does it work online?"
       ],
@@ -79,17 +79,17 @@
       "id": "008",
       "category": "Delivery Rescheduling - In Transit Order",
       "expected_agent": "Delivery Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "My delivery for ORD-99102 is scheduled 2 PM to 4 PM today with driver Maria S. I won't be home. Can you push it to evening or reschedule for tomorrow?"
       ],
-      "logs": ""
+      "logs": "User: \"My delivery for ORD-99102 is scheduled 2 PM to 4 PM today with driver Maria S. I won't be home. Can you push it to evening or reschedule for tomorrow?\"\nAssistant (intent: \ud83d\ude9a delivery): \"Unfortunately, I cannot directly modify delivery slots for your order. However, you can contact our customer service team or use the live tracking link provided for your delivery (#live-map (#live-map)) to communicate with the driver or reschedule.\n\nIf you'd like, I can assist you with the contact details or guide you through the process. Let me know!\"\n\u274c Failure: Quality Check Failed: Response contains forbidden markdown headers (#) or rules (---/===)."
     },
     {
       "id": "009",
       "category": "Nectar Points Balance and Redemption",
       "expected_agent": "Order Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "How many Nectar points do I have on my account? And can I use them on my next grocery order online?"
       ],
@@ -99,7 +99,7 @@
       "id": "010",
       "category": "Multi-Intent - Order Status + Refund",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Can you check ORD-99102 for me and also tell me if my refund from ORD-97830 has gone through? I've been waiting on both."
       ],
@@ -109,7 +109,7 @@
       "id": "011",
       "category": "Out of Stock Check - Avocados at Islington",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Are avocados in stock at the Islington store? I need a 4-pack."
       ],
@@ -119,27 +119,27 @@
       "id": "012",
       "category": "Store Hours - Sunday Trading",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "What time does the Camden Local open on Sundays? And does it close earlier than weekdays?"
       ],
-      "logs": ""
+      "logs": "User: \"What time does the Camden Local open on Sundays? And does it close earlier than weekdays?\"\nAssistant (intent: \ud83d\ude9a delivery): \"The Sainsbury's Camden Local opens at 7:00 AM on Sundays. Yes, it closes earlier than on weekdays, as it closes at 10:00 PM on Sundays, compared to 11:00 PM from Monday to Saturday.\"\n\u274c Failure: Expected agent \"Store Agent\" but got intent \"\ud83d\ude9a delivery\"."
     },
     {
       "id": "013",
       "category": "Product Recommendation - High Protein + Gluten Free",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I'm looking for high-protein foods that are also gluten-free. What do you have in that range?"
       ],
-      "logs": ""
+      "logs": "User: \"I'm looking for high-protein foods that are also gluten-free. What do you have in that range?\"\nAssistant (intent: \ud83c\udfea store): \"Jamie, here are some high-protein, gluten-free food options available at Sainsbury's:\n\nProtein-Rich Gluten-Free Foods:\n1. Meat & Poultry:\n\u2022 Chicken breast fillets\n\u2022 Turkey mince\n\u2022 Lean beef steaks\n\u2022 Lamb chops\n\n2. Seafood:\n\u2022 Salmon fillets\n\u2022 Tuna steaks\n\u2022 Prawns\n\u2022 Cod fillets\n\n3. Dairy (check for gluten-free labeling):\n\u2022 Greek yogurt (plain, unsweetened)\n\u2022 Cottage cheese\n\u2022 Cheddar cheese\n\u2022 Mozzarella\n\n4. Plant-Based Proteins:\n\u2022 Tofu (firm or silken)\n\u2022 Tempeh\n\u2022 Edamame beans\n\u2022 Chickpeas (canned or dried)\n\n5. Eggs:\n\u2022 Free-range eggs (12pk or 6pk)\n\n6. Nuts & Seeds:\n\u2022 Almonds\n\u2022 Walnuts\n\u2022 Chia seeds\n\u2022 Pumpkin seeds\n\n7. Gluten-Free Grains:\n\u2022 Quinoa\n\u2022 Buckwheat\n\u2022 Gluten-free oats\n\n8. Snacks:\n\u2022 Gluten-free protein bars\n\u2022 Roasted chickpeas\n\u2022 Gluten-free nut mixes\n\nPromotions You Can Use:\n\u2022 Gold Member Special: 10% off store-wide with code GOLD10.\n\u2022 20% OFF Dairy: Use code DAIRY20 for discounts on dairy products.\n\u2022 Frozen Feast: 25% off frozen foods with code FROZEN25.\n\nYou can shop these items online or visit your nearest Sainsbury's store. Let me know if you'd like help finding a specific product or placing an order!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "014",
       "category": "Allergen Information Request",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Does the Sourdough Bread 800g contain any gluten? My partner has a wheat intolerance and I want to make sure before I buy."
       ],
@@ -149,17 +149,17 @@
       "id": "015",
       "category": "Delivery Tracking - Live Map",
       "expected_agent": "Delivery Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "My order ORD-99102 shows it's at stop 4 out of 9. Where can I track it live? Is there a map link?"
       ],
-      "logs": ""
+      "logs": "User: \"My order ORD-99102 shows it's at stop 4 out of 9. Where can I track it live? Is there a map link?\"\nAssistant (intent: \ud83d\udce6 order): \"Yes, Jamie, you can track your order live. For order ORD-99102, the live tracking link is available here: Track Your Order Live (#live-map).\"\n\u274c Failure: Quality Check Failed: Response contains forbidden markdown headers (#) or rules (---/===)."
     },
     {
       "id": "016",
       "category": "Click and Collect Eligibility",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Can I click and collect the Salmon Fillets 400g? And which stores support click and collect for it?"
       ],
@@ -169,7 +169,7 @@
       "id": "017",
       "category": "Refund Request - Spoiled Milk",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "The Organic Whole Milk I got in my last delivery was completely off. Smelled terrible when I opened it. I want my money back for it, it was in order ORD-98741."
       ],
@@ -179,40 +179,40 @@
       "id": "018",
       "category": "Spelling Mistake - Product Search",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "Do you have porcidge oats in the store? Like the big 1kg bag. And where woud i find it?"
       ],
-      "logs": ""
+      "logs": "User: \"Do you have porcidge oats in the store? Like the big 1kg bag. And where woud i find it?\"\nAssistant (intent: \ud83c\udfea store): \"Yes, Jamie, we have 1kg bags of porridge oats available in both nearby stores:\n\n1. Sainsbury's Islington Superstore:\n\u2022 Price: \u00a31.40\n\u2022 Aisle: Aisle 3 (Breakfast Cereals)\n\u2022 Address: 48 Liverpool Road, Islington, London N1 0PL\n\u2022 Hours: Mon-Sat: 07:00\u201323:00, Sunday: 11:00\u201317:00\n\u2022 Distance: 2.83 miles from your location\n\n2. Sainsbury's Camden Local:\n\u2022 Price: \u00a31.40\n\u2022 Aisle: Aisle 3 (Breakfast Cereals)\n\u2022 Address: 216 Camden High St, Camden, London NW1 8QR\n\u2022 Hours: Mon-Sat: 06:00\u201323:00, Sunday: 07:00\u201322:00\n\u2022 Distance: 2.61 miles from your location\n\nYou can find the porridge oats in the breakfast cereals section, Aisle 3, in both stores. Let me know if you need further assistance!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "019",
       "category": "Multi-Turn - Product to Order Confirmation",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "What's the price of the Salmon Fillets 400g?",
         "Nice. And how many Nectar points will I earn on that?",
         "Great. Is it available for home delivery from the Camden store?"
       ],
-      "logs": ""
+      "logs": "User: \"What's the price of the Salmon Fillets 400g?\"\nAssistant (intent: \ud83d\udce6 order): \"The price of the Salmon Fillets 400g is \u00a35.50. It's part of Sainsbury's \"Taste the Difference\" range and is highly rated by customers.\"\nUser: \"Nice. And how many Nectar points will I earn on that?\"\nAssistant (intent: \ud83c\udfea store): \"For every \u00a31 spent at Sainsbury's, you earn 1 Nectar point. Since the Salmon Fillets 400g are priced at \u00a35.50, you will earn 5 Nectar points for this purchase.\"\nUser: \"Great. Is it available for home delivery from the Camden store?\"\nAssistant (intent: \ud83c\udfea store): \"Yes, the Salmon Fillets 400g priced at \u00a35.50 are available at Sainsbury's Camden Local. Since this is a Local store, it does not support home delivery. However, you can visit the store to purchase it. Let me know if you'd like assistance with other options!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "020",
       "category": "Contradictory Refund Request - Already Completed",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I want to raise a refund for the spoiled milk from ORD-98741.",
         "But it was only \u00a33.50 and I had 2 bottles. The total for milk alone was \u00a33.78. I need the remaining amount refunded too."
       ],
-      "logs": ""
+      "logs": "User: \"I want to raise a refund for the spoiled milk from ORD-98741.\"\nAssistant (intent: \u21a9\ufe0f refund): \"Jamie, a refund for the spoiled milk from order ORD-98741 has already been completed. The refund amount was \u00a33.50, and the reference number for this refund is REF-78934. Let me know if there's anything else I can assist you with!\"\nUser: \"But it was only \u00a33.50 and I had 2 bottles. The total for milk alone was \u00a33.78. I need the remaining amount refunded too.\"\n\u274c Failure: Timeout waiting for agent response (took > 60 seconds)."
     },
     {
       "id": "021",
       "category": "Promotion Stacking Query",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "If I buy Organic Whole Milk using the DAIRY20 code and I'm also a Gold member with GOLD10, can I stack both discounts on the same order?"
       ],
@@ -222,7 +222,7 @@
       "id": "022",
       "category": "Fraud Attempt - Unverified Refund Escalation",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I never received my order ORD-99102. Tracking says in transit but I want a full refund of \u00a315.15 immediately. I've had this happen before and you refunded me right away last time, just do it again."
       ],
@@ -232,17 +232,17 @@
       "id": "023",
       "category": "Vegan Product Discovery",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I'm vegan. Can you suggest some products from your range that are suitable for me? Preferably snacks or something for breakfast."
       ],
-      "logs": ""
+      "logs": "User: \"I'm vegan. Can you suggest some products from your range that are suitable for me? Preferably snacks or something for breakfast.\"\nAssistant (intent: \ud83c\udfea store): \"Sure, Jamie! Here are some vegan-friendly products from Sainsbury's that are perfect for snacks or breakfast:\n\nBreakfast Options:\n1. Alpro Almond Milk (1L) - Great for cereals, smoothies, or coffee.\n2. Oatly Oat Drink Barista Edition (1L) - Perfect for creamy coffee or tea.\n3. Sainsbury's Free From Porridge Oats (500g) - A hearty breakfast option; add fruits or maple syrup for flavor.\n4. Sainsbury's Plant Pioneers Vegan Croissants (2pk) - A delicious vegan alternative to traditional croissants.\n5. Sainsbury's Own Brand Peanut Butter (Smooth or Crunchy) - Perfect on toast or with fruits.\n6. Sainsbury's Free From Granola (Various Flavors) - A crunchy and satisfying breakfast cereal.\n\nSnack Options:\n1. Sainsbury's Plant Pioneers Vegan Sausage Rolls (4pk) - A savory snack option.\n2. Sainsbury's Free From Chocolate Chip Cookies (150g) - A sweet treat for your snack time.\n3. Nakd Bars (Various Flavors) - Made with natural ingredients and perfect for on-the-go snacking.\n4. Sainsbury's Hummus (Various Flavors) - Pair with carrot sticks, cucumber, or pita bread.\n5. Sainsbury's Popcorn (Sweet or Salted) - A light and vegan-friendly snack.\n6. Sainsbury's Plant Pioneers Vegan Cheese & Onion Crisps - A tasty savory snack.\n\nLet me know if you'd like me to check the availability of any of these products at a specific store or if you need more suggestions!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "024",
       "category": "Seasonal Promotion - Frozen Foods",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Is the 25% off frozen foods deal still on? I want to grab some Ben and Jerry's and Aunt Bessie's roast potatoes."
       ],
@@ -252,7 +252,7 @@
       "id": "025",
       "category": "Store Inventory - Electronics Stock Check",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Do you have the Sony WH-CH720N headphones in stock at your Islington Superstore? I want to try them before buying."
       ],
@@ -262,7 +262,7 @@
       "id": "026",
       "category": "Order History Lookup - Past Purchases",
       "expected_agent": "Order Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Can you tell me what I ordered in my last four orders? I want to check if I've been buying the same things."
       ],
@@ -272,7 +272,7 @@
       "id": "027",
       "category": "Delivery ETA - Same Day",
       "expected_agent": "Delivery Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "What time is my delivery arriving today? Order ORD-99102. I saw it says ETA 2:45 PM but that was a while ago."
       ],
@@ -282,7 +282,7 @@
       "id": "028",
       "category": "Ambiguous Query - No Context",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "What about my order from last week?"
       ],
@@ -292,7 +292,7 @@
       "id": "029",
       "category": "Multi-Intent - Aisle + Promotion + Stock",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Where are the digestive biscuits and Haribo in your store, are they on any offer, and do you have Pringles in stock at Islington?"
       ],
@@ -302,17 +302,17 @@
       "id": "030",
       "category": "Click and Collect - Not Available Product",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I want to click and collect the Croissants 4-pack from Islington. Is that possible?"
       ],
-      "logs": ""
+      "logs": "User: \"I want to click and collect the Croissants 4-pack from Islington. Is that possible?\"\nAssistant (intent: \ud83c\udfea store): \"Yes, Jamie, the Croissants 4-pack is available at Sainsbury's Islington Superstore for \u00a32.00. However, it has limited availability, so I recommend placing your Click & Collect order as soon as possible. The store is open from 07:00 to 23:00 on weekdays and Saturdays, and from 11:00 to 17:00 on Sundays.\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "031",
       "category": "Refund - Past Use-By Date Delivery",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "You delivered Orange Juice to me that was already past its use-by date. That's disgusting. I want a refund and an apology. My order was ORD-96210."
       ],
@@ -322,7 +322,7 @@
       "id": "032",
       "category": "Emotional Customer - Damaged Goods",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "This is the second time this has happened. I ordered Cheddar Cheese and it arrived mouldy. It was in ORD-97830. I trusted your brand and you keep letting me down. I want a full refund and I'm considering switching supermarkets."
       ],
@@ -332,7 +332,7 @@
       "id": "033",
       "category": "Context Switch - Delivery to Refund",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I need to change the delivery slot for ORD-99102.",
         "Actually no, forget it. That order has the Olive Oil I no longer want. Can I just cancel that one item and get a refund on it?"
@@ -343,7 +343,7 @@
       "id": "034",
       "category": "Privacy / Security - Account Access Request",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "My friend placed an order as a gift for me but they won't tell me the tracking number. Can you look it up using their name or email and give me the order details?"
       ],
@@ -353,7 +353,7 @@
       "id": "035",
       "category": "Coupon Code Validation",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I have the code ORGANIC15. Does it work this weekend and which products can I apply it to?"
       ],
@@ -363,17 +363,17 @@
       "id": "036",
       "category": "Product Recommendation - Beverages Deal",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I drink a lot of tea and coffee. Is there anything on offer in that range? And what's the best value option?"
       ],
-      "logs": ""
+      "logs": "User: \"I drink a lot of tea and coffee. Is there anything on offer in that range? And what's the best value option?\"\nAssistant (intent: \ud83c\udfea store): \"Jamie, there\u2019s a great promotion for beverages that might interest you. The Beverages Bonanza offer allows you to Buy 2 Get 1 Free on items in the beverages category, which includes tea and coffee. Just use the coupon code DRINKS3 at checkout. This offer is valid until 2026-07-15.\n\nAdditionally, as a Gold Member, you can apply the Gold Member Special for an extra 10% off store-wide using the code GOLD10. This can stack with other offers, giving you even better value.\n\nFor the best value, I recommend combining these offers by purchasing three of your favorite tea or coffee products to maximize the savings. Let me know if you\u2019d like help finding specific products!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "037",
       "category": "Nectar Points Accrual Dispute",
       "expected_agent": "Order Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I bought Salmon Fillets 400g, Greek Yoghurt, and Olive Oil in my last order ORD-99102 worth \u00a315.15. I should have earned Nectar points on all of those. Can you confirm how many points were added to my account?"
       ],
@@ -383,7 +383,7 @@
       "id": "038",
       "category": "Multi-Turn Memory - Order Number Recall",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "My order number is ORD-97830. It was a Click and Collect from Sainsbury's Holborn.",
         "I collected it on the 2nd of June. Now I want to raise a return.",
@@ -395,7 +395,7 @@
       "id": "039",
       "category": "Policy Violation - Expired Return Window",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I bought Pasta Fusilli in ORD-97830 back on 2nd June 2025 and I never got round to using it. It's not for me. I want to return all 3 packs and get a refund please."
       ],
@@ -405,27 +405,27 @@
       "id": "040",
       "category": "Stress Test - Multiple Issues in One Message",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "Right so I need a few things sorted. First my order ORD-99102 hasn't arrived yet and I'm worried. Second, my refund REF-20441 for the mouldy cheese has been sitting in processing forever. Third, is the 20% dairy discount still active because I want to buy milk and butter. And finally where in the Islington store are the dishwasher tablets?"
       ],
-      "logs": ""
+      "logs": "User: \"Right so I need a few things sorted. First my order ORD-99102 hasn't arrived yet and I'm worried. Second, my refund REF-20441 for the mouldy cheese has been sitting in processing forever. Third, is the 20% dairy discount still active because I want to buy milk and butter. And finally where in the Islington store are the dishwasher tablets?\"\nAssistant (intent: \u21a9\ufe0f refund): \"Hi Jamie, let me address your concerns one by one:\n\n1. Order ORD-99102: Your order was scheduled for delivery today (16th June) between 14:00\u201316:00. The driver, Maria S., is currently on stop 4 out of 9, and the estimated delivery time is 14:45. You can track the driver live using this link (#live-map).\n\n2. Refund REF-20441: I couldn't find a refund with the reference REF-20441 in your account. However, I do see a completed refund (REF-72330) for mouldy cheddar cheese from order ORD-97830. Could you confirm if this is the one you're referring to? If not, please provide more details so I can investigate further.\n\n3. 20% Dairy Discount: Unfortunately, there is no active 20% discount on dairy products at the moment. However, as a Gold Nectar member, you may have personalized offers in your Nectar account. I recommend checking your Nectar app or account for any available discounts.\n\n4. Dishwasher Tablets in Islington Store: In the Sainsbury's Islington Superstore, dishwasher tablets are typically located in the household cleaning aisle. If you need assistance in-store, the staff will be happy to guide you.\n\nLet me know if you need further help!\"\n\u274c Failure: Quality Check Failed: Response contains forbidden markdown headers (#) or rules (---/===)."
     },
     {
       "id": "041",
       "category": "Delivery - Wrong Address Concern",
       "expected_agent": "Delivery Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I think I may have put the wrong postcode for ORD-99102. My address is 50 Oak Lane London SW1A 1AA. Can you confirm that's where it's going?"
       ],
-      "logs": ""
+      "logs": "User: \"I think I may have put the wrong postcode for ORD-99102. My address is 50 Oak Lane London SW1A 1AA. Can you confirm that's where it's going?\"\nAssistant (intent: \ud83c\udfea store): \"Jamie, I can confirm that the delivery address for your order ORD-99102 is indeed listed as 50 Oak Lane, London, SW1A 1AA. There is no indication of a different postcode being used for this order.\n\nIf you have any further concerns or need assistance, feel free to let me know!\"\n\u274c Failure: Expected agent \"Delivery Agent\" but got intent \"\ud83c\udfea store\"."
     },
     {
       "id": "042",
       "category": "Incomplete Query - Follow-Up Required",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "Yeah I ordered some salmon and spinach last week and... I don't know, something wasn't right."
       ],
@@ -435,7 +435,7 @@
       "id": "043",
       "category": "Product Nutritional Info - Diabetic Concern",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I'm watching my sugar intake. Can you tell me the sugar content per 100g in the Porridge Oats? And are there any sugar-free snack options you'd recommend?"
       ],
@@ -445,27 +445,27 @@
       "id": "044",
       "category": "Hinglish - Order Status",
       "expected_agent": "Order Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "Bhai mera parcel ORD-99102 kab aayega? Driver Maria hai na, usne abhi tak deliver nahi kiya. Bahut time ho gaya."
       ],
-      "logs": ""
+      "logs": "User: \"Bhai mera parcel ORD-99102 kab aayega? Driver Maria hai na, usne abhi tak deliver nahi kiya. Bahut time ho gaya.\"\nAssistant (intent: \ud83d\ude9a delivery): \"Jamie, aapka parcel ORD-99102 ka status \"refund_completed\" hai, iska matlab yeh hai ki yeh order deliver nahi ho paya tha aur aapko iska pura refund GBP15.15 already mil chuka hai. Driver Maria ke through yeh order deliver hone wala tha, lekin yeh deliver nahi ho saka.\n\nAgar aapko aur kuch madad chahiye ho, toh zarur batayein!\"\n\u274c Failure: Expected agent \"Order Agent\" but got intent \"\ud83d\ude9a delivery\"."
     },
     {
       "id": "045",
       "category": "New Arrival Product Enquiry",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "Do you have any new products in lately? Specifically looking at produce or dairy."
       ],
-      "logs": ""
+      "logs": "User: \"Do you have any new products in lately? Specifically looking at produce or dairy.\"\nAssistant (intent: \ud83c\udfea store): \"Hi Jamie! Here\u2019s the latest information on produce and dairy products, along with some active promotions:\n\nNew Products in Produce:\n\u2022 Baby Spinach (200g) - \u00a31.40\n\u2022 Avocados (4pk) - \u00a32.50 (currently out of stock in nearby stores but available in others)\n\nNew Products in Dairy:\n\u2022 Organic Whole Milk (2L) - \u00a31.89\n\u2022 Free Range Eggs (12pk) - \u00a33.50\n\u2022 Greek Yoghurt (500g) - \u00a32.10\n\u2022 Cheddar Cheese (400g) - \u00a33.20\n\u2022 Unsalted Butter (250g) - \u00a31.85\n\u2022 Semi-Skimmed Milk (6x1L) - \u00a35.50\n\u2022 Oat Milk (1L) - \u00a31.80 (Dairy Alternative)\n\nActive Promotions:\n\u2022 20% OFF Dairy: Use code DAIRY20 (valid until 15th July 2026).\n\u2022 10% OFF Produce & Bakery: Use code WEEKEND10 (valid until 21st June 2026).\n\nYou can find these products at your nearest stores:\n\u2022 Sainsbury's Camden Local (2.61 miles away)\n\u2022 Sainsbury's Islington Superstore (2.83 miles away)\n\nLet me know if you\u2019d like more details or assistance with anything else!\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "046",
       "category": "Electronics Summer Sale - Discount Confirmation",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I saw a summer deal on electronics. Does it apply to the Kindle Paperwhite or the Amazon Echo Dot? What's the code?"
       ],
@@ -475,17 +475,17 @@
       "id": "047",
       "category": "Gadget Recommendation - Fitness",
       "expected_agent": "Store Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "I want to get a fitness tracker. What do you have and which one is more popular, the Fitbit or the Garmin?"
       ],
-      "logs": ""
+      "logs": "User: \"I want to get a fitness tracker. What do you have and which one is more popular, the Fitbit or the Garmin?\"\nAssistant (intent: \ud83c\udfea store): \"Jamie, here are the fitness trackers available at Sainsbury's:\n\nFitbit\n\u2022 Model: Fitbit Inspire 3 Fitness Tracker\n\u2022 Price: \u00a379.99\n\u2022 Availability: Limited stock in nearby stores like Sainsbury's Camden Local (2.61 miles) and Sainsbury's Islington Superstore (2.83 miles). Some stores further away have better stock.\n\nGarmin\n\u2022 Model: Garmin Vivosmart 5 Activity Tracker\n\u2022 Price: \u00a399.99\n\u2022 Availability: In stock at Sainsbury's Islington Superstore (2.83 miles) and other locations. It has slightly better availability compared to the Fitbit.\n\nPopularity\nBoth Fitbit and Garmin are popular brands, but Fitbit is often favored for its user-friendly interface and affordability, while Garmin is preferred by fitness enthusiasts for its advanced tracking features and durability. If you're looking for a more budget-friendly option, Fitbit might be the way to go. For more advanced features, Garmin is a great choice.\n\nWould you like me to reserve one for you at a nearby store?\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "048",
       "category": "Fake Urgency - Immediate Refund Pressure",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I need you to refund me \u00a315.15 for ORD-99102 right now. I don't want to wait for standard processing. Just refund it back to my Visa 4821 immediately or I'm filing a chargeback with my bank today."
       ],
@@ -495,20 +495,20 @@
       "id": "049",
       "category": "Multi-Turn Context Switch - Recommendation to Purchase",
       "expected_agent": "Router Agent",
-      "status": "pending",
+      "status": "fail",
       "user_turns": [
         "Can you recommend a good vegan snack?",
         "I'll go with the Nakd Bar. Is it available at Camden?",
         "Cool. And is there a Snacks discount code I can use on that?",
         "Perfect. Also, what aisle is it in when I visit the store?"
       ],
-      "logs": ""
+      "logs": "User: \"Can you recommend a good vegan snack?\"\nAssistant (intent: \ud83c\udfea store): \"Sure, Jamie! Here are some great vegan snack ideas:\n\n1. Hummus and Veggie Sticks: Pair hummus with carrot, cucumber, or celery sticks for a healthy and satisfying snack.\n2. Roasted Chickpeas: Crunchy and packed with protein, roasted chickpeas are a great on-the-go option.\n3. Vegan Dark Chocolate: Look for dark chocolate that's dairy-free for a sweet treat.\n4. Fruit and Nut Mix: Combine dried fruits like apricots or raisins with nuts for a quick energy boost.\n5. Rice Cakes with Nut Butter: Spread almond or peanut butter on rice cakes for a simple yet delicious snack.\n6. Vegan Protein Bars: Many brands offer plant-based protein bars in various flavors.\n7. Popcorn: Air-popped popcorn seasoned with nutritional yeast for a cheesy flavor is a great vegan option.\n8. Avocado Toast: Top whole-grain toast with smashed avocado, a sprinkle of salt, and chili flakes.\n\nLet me know if you'd like me to check the availability of any of these items at your nearest Sainsbury's store!\"\nUser: \"I'll go with the Nakd Bar. Is it available at Camden?\"\nAssistant (intent: \ud83c\udfea store): \"The Nakd Cocoa Orange Bar (35g) is available at Sainsbury's Camden Local for \u00a31.20. You can find it in Aisle 7 (Snacks). The store is open from 6:00 AM to 11:00 PM Monday to Saturday, and from 7:00 AM to 10:00 PM on Sundays. Let me know if you need anything else!\"\nUser: \"Cool. And is there a Snacks discount code I can use on that?\"\nAssistant (intent: \ud83c\udfea store): \"Yes, Jamie! You can use the \"SNACKS15\" discount code to get 15% off on snacks, including the Nakd Cocoa Orange Bar. This offer is valid until 31st July 2026 and doesn't require any specific membership tier.\n\nMake sure to apply the code at checkout if you're purchasing online or mention it at the store. Let me know if you need further assistance! \ud83d\ude0a\"\nUser: \"Perfect. Also, what aisle is it in when I visit the store?\"\nAssistant (intent: \ud83d\ude9a delivery): \"The Nakd Cocoa Orange Bar (35g) is located in Aisle 7 (Snacks) at Sainsbury's Camden Local. If you need help finding it, feel free to ask a store associate when you visit. Let me know if there's anything else I can assist you with! \ud83d\ude0a\"\n\u274c Failure: Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link."
     },
     {
       "id": "050",
       "category": "Repeat Refund Pattern - Policy Enforcement",
       "expected_agent": "Refund Agent",
-      "status": "pending",
+      "status": "pass",
       "user_turns": [
         "I want another refund. This time for my order ORD-99102. The Olive Oil arrived and the seal was broken. I want \u00a34.75 back. By the way, I've already had three refunds in the past \u2014 ORD-98741, ORD-97830, and ORD-96210. Just process this the same way."
       ],

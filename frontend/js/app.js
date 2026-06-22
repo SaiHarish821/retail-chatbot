@@ -9,6 +9,7 @@ const API_BASE = window.location.origin;
 let conversationHistory = [];
 let isRecording = false;
 let isThinking = false;
+let isTtsEnabled = localStorage.getItem("isTtsEnabled") === "true";
 let audioContext = null;
 let scriptProcessor = null;
 let micSource = null;
@@ -135,6 +136,25 @@ function bindEvents() {
       sendMessage(btn.dataset.prompt);
     });
   });
+
+  const ttsToggleBtn = document.getElementById("ttsToggleBtn");
+  if (ttsToggleBtn) {
+    updateTtsButtonUI();
+    ttsToggleBtn.addEventListener("click", () => {
+      isTtsEnabled = !isTtsEnabled;
+      localStorage.setItem("isTtsEnabled", isTtsEnabled);
+      updateTtsButtonUI();
+      if (isTtsEnabled) {
+        showToast("🔊 Text-to-Speech Enabled");
+        speakText("Text-to-speech enabled");
+      } else {
+        showToast("🔇 Text-to-Speech Disabled");
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      }
+    });
+  }
 }
 
 function autoResizeTextarea() {
@@ -185,6 +205,10 @@ async function sendMessage(text) {
     removeTyping(typingId);
     appendAIMessage(data.reply, data.intent);
     conversationHistory.push({ role: "assistant", content: data.reply });
+
+    if (isTtsEnabled) {
+      speakText(data.reply);
+    }
     
     // Refresh customer and orders in UI in case the agent executed tool updates
     await fetchCustomerData();
@@ -231,9 +255,19 @@ function appendAIMessage(text, intent) {
     <div>
       ${intent && intent !== "error" ? `<div class="intent-tag">${intentIcon} ${intentLabel}</div>` : ""}
       <div class="message-bubble ai-bubble">${formatAIText(text)}</div>
-      <div class="message-meta">${now()}</div>
+      <div class="message-meta">${now()} · <span class="msg-speak-btn" title="Read message" style="cursor:pointer; opacity:0.6; transition:opacity 0.2s;">🔊 Speak</span></div>
     </div>
   `;
+
+  const speakBtn = div.querySelector(".msg-speak-btn");
+  if (speakBtn) {
+    speakBtn.addEventListener("click", () => {
+      speakText(text);
+    });
+    speakBtn.addEventListener("mouseenter", () => speakBtn.style.opacity = "1");
+    speakBtn.addEventListener("mouseleave", () => speakBtn.style.opacity = "0.6");
+  }
+
   messagesEl.appendChild(div);
   scrollToBottom();
 }
@@ -587,4 +621,126 @@ function showError(msg) {
 
 function hideError() {
   errorBanner.classList.remove("visible");
+}
+
+// ── Text-to-Speech helpers ───────────────────────────────────────────────────
+function updateTtsButtonUI() {
+  const ttsToggleBtn = document.getElementById("ttsToggleBtn");
+  if (!ttsToggleBtn) return;
+  if (isTtsEnabled) {
+    ttsToggleBtn.classList.add("active");
+    ttsToggleBtn.textContent = "🔊";
+    ttsToggleBtn.title = "Disable Text-to-Speech";
+  } else {
+    ttsToggleBtn.classList.remove("active");
+    ttsToggleBtn.textContent = "🔇";
+    ttsToggleBtn.title = "Enable Text-to-Speech";
+  }
+}
+
+function speakText(text) {
+  if (!('speechSynthesis' in window)) {
+    console.warn("Text-to-Speech is not supported in this browser.");
+    return;
+  }
+
+  // Stop any active speech synthesis
+  window.speechSynthesis.cancel();
+
+  // Clean HTML tags
+  let cleanText = text.replace(/<[^>]*>/g, "");
+
+  // Remove internal IDs first before dashes are altered
+  cleanText = cleanText
+    .replace(/\bCUST-\d+\b/g, "")
+    .replace(/\bSTR-\d+\b/g, "");
+
+  // Convert star ratings (⭐⭐⭐⭐⭐ or ★★★★★) to spoken words ("5 stars")
+  cleanText = cleanText.replace(/[⭐★☆]+/g, (match) => {
+    const count = [...match].length;
+    return ` ${count} star${count !== 1 ? "s" : ""} `;
+  });
+
+  // Remove other decorative emojis and icons (like 👋, 🛒, 📦, 🚚, 🏪, etc.)
+  try {
+    cleanText = cleanText.replace(/\p{Emoji_Presentation}/gu, "");
+  } catch (e) {
+    // Fallback regex for environments that don't support Unicode property escapes
+    cleanText = cleanText.replace(/[\u{1F300}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+  }
+
+  // Replace links with friendly spoken equivalents
+  cleanText = cleanText.replace(/https?:\/\/[^\s]+/g, "the Sainsbury's website");
+
+  // Clean HTML tags, special characters, markdown symbols, and collapse spaces
+  cleanText = cleanText
+    .replace(/[*#`_\-–—•●✦]/g, " ")
+    .replace(/&bull;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleanText) return;
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = "en-GB";
+
+  // Select the highest quality human voice available
+  const voices = window.speechSynthesis.getVoices();
+  const enVoices = voices.filter(v => v.lang.toLowerCase().startsWith("en"));
+  
+  // Prioritize Edge's Online Natural voices, Google premium voices, Apple Siri/Premium, and standard defaults
+  const findVoice = () => {
+    // 1. Natural en-GB (e.g. Microsoft Sonia Online (Natural))
+    const naturalGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb") && v.name.toLowerCase().includes("natural"));
+    if (naturalGB) return naturalGB;
+    
+    // 2. Any English Natural voice (e.g. Microsoft Aria Online (Natural))
+    const naturalEn = enVoices.find(v => v.name.toLowerCase().includes("natural"));
+    if (naturalEn) return naturalEn;
+    
+    // 3. Google en-GB
+    const googleGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb") && v.name.toLowerCase().includes("google"));
+    if (googleGB) return googleGB;
+
+    // 4. Any Google English voice
+    const googleEn = enVoices.find(v => v.name.toLowerCase().includes("google"));
+    if (googleEn) return googleEn;
+
+    // 5. Apple Premium / Enhanced / Siri en-GB
+    const premiumGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb") && 
+      (v.name.toLowerCase().includes("premium") || v.name.toLowerCase().includes("enhanced") || v.name.toLowerCase().includes("siri")));
+    if (premiumGB) return premiumGB;
+
+    // 6. Any Premium / Enhanced / Siri English voice
+    const premiumEn = enVoices.find(v => v.name.toLowerCase().includes("premium") || v.name.toLowerCase().includes("enhanced") || v.name.toLowerCase().includes("siri"));
+    if (premiumEn) return premiumEn;
+
+    // 7. Standard en-GB
+    const standardGB = enVoices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith("en-gb"));
+    if (standardGB) return standardGB;
+
+    // 8. Standard English fallback
+    if (enVoices.length > 0) return enVoices[0];
+
+    // 9. Absolute fallback
+    return voices[0];
+  };
+
+  const selectedVoice = findVoice();
+  if (selectedVoice) {
+    utterance.voice = selectedVoice;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// Preload voices as early as possible so they are immediately available on speech request
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      // Fetch voices again to trigger loading in the browser
+      window.speechSynthesis.getVoices();
+    };
+  }
 }

@@ -1,8 +1,24 @@
 import sqlite3
 import os
 import json
+import shutil
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mock_data", "retail_chatbot.db"))
+ORIGINAL_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mock_data", "retail_chatbot.db"))
+
+# Detect Vercel or AWS Lambda serverless execution environments
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    DB_PATH = "/tmp/retail_chatbot.db"
+    # Copy original seeded database to writeable /tmp path if it doesn't exist yet
+    if not os.path.exists(DB_PATH) and os.path.exists(ORIGINAL_DB_PATH):
+        try:
+            os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+            shutil.copy2(ORIGINAL_DB_PATH, DB_PATH)
+            print(f"[Database] Copied SQLite database to writeable /tmp path: {DB_PATH}")
+        except Exception as e:
+            print(f"[Database] Failed to copy database to /tmp: {e}")
+            DB_PATH = ORIGINAL_DB_PATH
+else:
+    DB_PATH = ORIGINAL_DB_PATH
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
