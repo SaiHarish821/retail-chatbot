@@ -1576,17 +1576,17 @@ class AgentRouter:
             try:
                 deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
                 loop = asyncio.get_event_loop()
-                def call_completion():
+                def call_routing():
                     return self._openai_client.chat.completions.create(
                         model=deployment,
                         messages=[
                             {"role": "system", "content": routing_prompt},
-                            {"role": "user", "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nCURRENT USER MESSAGE: {message}"}
+                            {"role": "user", "content": message}
                         ],
-                        max_tokens=150,
+                        max_tokens=300,
                         temperature=0.0,
                     )
-                res = await loop.run_in_executor(None, call_completion)
+                res = await loop.run_in_executor(None, call_routing)
                 content = res.choices[0].message.content.strip()
                 clean = re.sub(r"^```(?:json)?\n?", "", content)
                 clean = re.sub(r"\n?```$", "", clean)
@@ -1658,16 +1658,16 @@ class AgentRouter:
             return replies[0]
 
         supervisor_id = self._agent_ids.get("supervisor")
+        merge_request = f"Original customer question: {message}\n\n"
+        for i, (task, reply) in enumerate(zip(tasks, replies), 1):
+            merge_request += f"--- Part {i} (Agent: {task['agent']}) ---\n{reply}\n\n"
+        merge_request += (
+            "Merge these specialist replies into a single, cohesive, "
+            "well-formatted customer response. "
+            "Keep all important details. No duplicate greetings or sign-offs."
+        )
 
         if supervisor_id and self._agents_client:
-            merge_request = f"Original customer question: {message}\n\n"
-            for i, (task, reply) in enumerate(zip(tasks, replies), 1):
-                merge_request += f"--- Part {i} (Agent: {task['agent']}) ---\n{reply}\n\n"
-            merge_request += (
-                "Merge these specialist replies into a single, cohesive, "
-                "well-formatted customer response. "
-                "Keep all important details. No duplicate greetings or sign-offs."
-            )
             try:
                 merged = await self._call_foundry_agent(
                     agent_id=supervisor_id,
@@ -1675,10 +1675,39 @@ class AgentRouter:
                     task_query=merge_request,
                     history=[],
                 )
-                if merged:
+                if merged and not self._is_raw_routing_json(merged):
                     return merged
+                print("[AgentRouter] Supervisor merge returned raw routing JSON, falling back.")
             except Exception as e:
-                print(f"[AgentRouter] Supervisor merge failed: {e}. Using local merge.")
+                print(f"[AgentRouter] Supervisor merge failed: {e}. Using fallback.")
+
+        # Direct OpenAI merge fallback
+        if self._openai_client:
+            try:
+                deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+                merge_prompt = (
+                    "You are the supervisor assistant for a Sainsbury's retail chatbot.\n"
+                    "Your task is to merge multiple specialist agent responses into a single, cohesive, "
+                    "well-formatted customer response. Keep all important details. "
+                    "Do not repeat greetings or sign-offs. Provide a friendly and professional response."
+                )
+                loop = asyncio.get_event_loop()
+                def call_merge():
+                    return self._openai_client.chat.completions.create(
+                        model=deployment,
+                        messages=[
+                            {"role": "system", "content": merge_prompt},
+                            {"role": "user", "content": merge_request}
+                        ],
+                        max_tokens=500,
+                        temperature=0.0,
+                    )
+                res = await loop.run_in_executor(None, call_merge)
+                content = res.choices[0].message.content.strip()
+                if content and not self._is_raw_routing_json(content):
+                    return content
+            except Exception as e:
+                print(f"[AgentRouter] Direct OpenAI merge failed: {e}")
 
         # Local fallback: simple join with separator
         return "\n\n".join(replies)
@@ -1978,10 +2007,13 @@ class AgentRouter:
     def _is_raw_routing_json(self, text: str) -> bool:
         """Detect if a Foundry agent returned its routing plan JSON instead of a real reply."""
         stripped = text.strip()
-        if not (stripped.startswith("[") or stripped.startswith("{")):
+        # Clean markdown code fences if present
+        clean = re.sub(r"^```(?:json)?\n?", "", stripped, flags=re.IGNORECASE)
+        clean = re.sub(r"\n?```$", "", clean).strip()
+        if not (clean.startswith("[") or clean.startswith("{")):
             return False
         try:
-            parsed = json.loads(stripped)
+            parsed = json.loads(clean)
             if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
                 if "agent" in parsed[0] and "task_query" in parsed[0]:
                     return True
