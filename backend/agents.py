@@ -242,6 +242,7 @@ class AgentRouter:
         self.customer_data = customer_data
         self.context = build_context_block(customer_data)
         self._openai_client: Optional[AzureOpenAI] = None
+        self._async_openai_client = None
         self._agents_client: Optional[AgentsClient] = None
         # Maps logical role → Foundry asst_* agent ID (resolved at startup)
         self._agent_ids: dict[str, Optional[str]] = {
@@ -412,7 +413,13 @@ class AgentRouter:
                     azure_endpoint=base,
                     api_version="2024-10-21",
                 )
-                print(f"[AgentRouter] OpenAI client initialised directly via API key on base: {base}")
+                from openai import AsyncAzureOpenAI
+                self._async_openai_client = AsyncAzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=base,
+                    api_version="2024-10-21",
+                )
+                print(f"[AgentRouter] OpenAI clients initialised directly via API key on base: {base}")
             except Exception as e:
                 print(f"[AgentRouter] Direct AzureOpenAI init failed: {e}")
 
@@ -2063,12 +2070,12 @@ CUSTOMER DATA:
 - All recent orders: {all_orders_summary}
 
 VOICE RULES (MUST FOLLOW):
-1. Reply in EXACTLY ONE SHORT SENTENCE (under 20 words). Never more.
+1. Reply in EXACTLY 1-2 short sentences (under 25 words total).
 2. Be extremely concise, natural, and direct. Talk like a real person on a phone call.
 3. Never use bullet points, markdown, lists, or headers.
 4. Give the specific answer directly using the customer data.
 5. Do not use filler phrases or say "I'd be happy to help".
-6. End with a short question only if you need more information from the customer."""
+6. ALWAYS end your reply with a natural, friendly follow-up question to keep the conversation going and help the customer (e.g., "Would you like me to track it?", "Shall I reserve a loaf for you?", "Is there anything else I can check?")."""
 
         deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
 
@@ -2084,6 +2091,23 @@ VOICE RULES (MUST FOLLOW):
 
         try:
             import time
+            if self._async_openai_client:
+                t_start = time.perf_counter()
+                resp = await self._async_openai_client.chat.completions.create(
+                    model=deployment,
+                    messages=msgs,
+                    max_tokens=60,     # hard cap → forces short answers
+                    temperature=0.0,    # deterministic, fastest
+                    top_p=1.0,
+                    frequency_penalty=0.0,
+                    presence_penalty=0.0,
+                )
+                t_done = time.perf_counter() - t_start
+                reply = resp.choices[0].message.content.strip()
+                print(f"[AgentRouter][VOICE] Async reply ({resp.usage.completion_tokens} tokens) in {t_done:.3f}s: {reply[:100]}")
+                return reply
+
+            # Synchronous fallback with thread pool
             loop = asyncio.get_event_loop()
 
             def _call():
@@ -2105,7 +2129,7 @@ VOICE RULES (MUST FOLLOW):
             resp  = await loop.run_in_executor(None, _call)
             t_done = time.perf_counter() - t_start
             reply = resp.choices[0].message.content.strip()
-            print(f"[AgentRouter][VOICE] Reply ({resp.usage.completion_tokens} tokens) in {t_done:.3f}s: {reply[:100]}")
+            print(f"[AgentRouter][VOICE] Sync reply ({resp.usage.completion_tokens} tokens) in {t_done:.3f}s: {reply[:100]}")
             return reply
 
         except Exception as e:

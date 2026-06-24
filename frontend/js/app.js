@@ -31,7 +31,7 @@ let currentAudioElement = null; // High-quality Azure neural voice audio
 let phoneCurrentTurnTranscript = "";
 let phoneAccumulatedTurnTranscript = ""; // Accumulates finalized transcripts across browser restarts
 let phoneHasDetectedSpeechFallback = false;
-const PHONE_SILENCE_DURATION = 1500; // 1.5 seconds silence detection for Phone Call Mode to avoid cutting off user
+const PHONE_SILENCE_DURATION = 1000; // 1.0 second silence detection for Phone Call Mode to avoid cutting off user
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -1412,7 +1412,7 @@ async function submitPhoneCallTurnNative() {
   conversationHistory.push({ role: "user", content: text });
 
   try {
-    const response = await fetch(`${API_BASE}/chat`, {
+    const response = await fetch(`${API_BASE}/chat/voice`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1616,7 +1616,7 @@ async function submitPhoneCallTurnFallback() {
         appendUserMessage(text);
         conversationHistory.push({ role: "user", content: text });
 
-        const response = await fetch(`${API_BASE}/chat`, {
+        const response = await fetch(`${API_BASE}/chat/voice`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
