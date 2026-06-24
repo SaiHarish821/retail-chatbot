@@ -353,8 +353,24 @@ function removeTyping(id) {
 }
 
 function formatAIText(text) {
+  // Extract and parse <product-grid> JSON blocks before escaping HTML
+  const gridRegex = /<product-grid>([\s\S]*?)<\/product-grid>/g;
+  let matches = [];
+  let modifiedText = text.replace(gridRegex, (match, jsonStr) => {
+    try {
+      const products = JSON.parse(jsonStr.trim());
+      const gridHtml = renderProductGrid(products);
+      const placeholder = `__PRODUCT_GRID_PLACEHOLDER_${matches.length}__`;
+      matches.push(gridHtml);
+      return placeholder;
+    } catch (e) {
+      console.error("Failed to parse product-grid JSON:", e);
+      return match;
+    }
+  });
+
   // 1. Escape HTML first
-  let safe = escapeHtml(text);
+  let safe = escapeHtml(modifiedText);
 
   // 2. Strip stray markdown headers and horizontal rules
   safe = safe.replace(/^#{1,3}\s+.*/gm, "");
@@ -404,7 +420,14 @@ function formatAIText(text) {
   }
   if (inList) result.push("</ul>");
 
-  return result.join("");
+  let formattedHtml = result.join("");
+
+  // Re-insert rendered product grids
+  for (let i = 0; i < matches.length; i++) {
+    formattedHtml = formattedHtml.replace(`__PRODUCT_GRID_PLACEHOLDER_${i}__`, matches[i]);
+  }
+
+  return formattedHtml;
 }
 
 
@@ -1660,4 +1683,100 @@ if ('speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
     };
   }
+}
+
+// ── Product Grid Renderer Helpers ───────────────────────────────────────────
+function getProductIcon(category) {
+  const cat = (category || "").toLowerCase();
+  if (cat.includes("dairy")) return "🥛";
+  if (cat.includes("bakery") || cat.includes("bread")) return "🍞";
+  if (cat.includes("pantry") || cat.includes("oil") || cat.includes("condiment")) return "🫙";
+  if (cat.includes("fruit") || cat.includes("vegetable") || cat.includes("produce")) return "🍎";
+  if (cat.includes("meat") || cat.includes("poultry") || cat.includes("chicken")) return "🍗";
+  if (cat.includes("fish") || cat.includes("seafood")) return "🐟";
+  if (cat.includes("beverage") || cat.includes("drink")) return "🥤";
+  if (cat.includes("snack") || cat.includes("sweet") || cat.includes("chocolate")) return "🍫";
+  if (cat.includes("frozen")) return "❄️";
+  return "🛒";
+}
+
+function renderStars(rating) {
+  const r = parseFloat(rating) || 0;
+  let stars = "";
+  for (let i = 1; i <= 5; i++) {
+    if (i <= r) {
+      stars += "★";
+    } else {
+      stars += "☆";
+    }
+  }
+  return stars;
+}
+
+function renderBadges(product) {
+  let badges = "";
+  if (product.best_seller) {
+    badges += `<div class="product-card-badge badge-bestseller">Best Seller</div>`;
+  }
+  if (product.is_on_promotion) {
+    badges += `<div class="product-card-badge badge-promo">${product.promotion_detail || "Promo"}</div>`;
+  }
+  if (product.store_recommended) {
+    badges += `<div class="product-card-badge badge-recommended">Staff Pick</div>`;
+  }
+  return badges;
+}
+
+function getAvailabilityClass(status) {
+  const s = (status || "").toLowerCase();
+  if (s.includes("in stock")) return "status-instock";
+  if (s.includes("limited")) return "status-limited";
+  if (s.includes("out of stock")) return "status-outofstock";
+  return "status-instock";
+}
+
+function renderProductGrid(products) {
+  if (!Array.isArray(products) || products.length === 0) return "";
+  
+  let cardsHtml = products.map(p => {
+    const icon = getProductIcon(p.category);
+    const badges = renderBadges(p);
+    const stars = renderStars(p.customer_rating);
+    const availClass = getAvailabilityClass(p.availability);
+    const priceStr = typeof p.price === "number" ? p.price.toFixed(2) : parseFloat(p.price || 0).toFixed(2);
+    
+    const isOutOfStock = (p.availability || "").toLowerCase().includes("out of stock");
+    const actionBtn = isOutOfStock 
+      ? `<button class="product-card-action-btn" disabled style="background:#e5e7eb;color:#9ca3af;cursor:not-allowed;">Out of Stock</button>`
+      : `<button class="product-card-action-btn" onclick="sendMessage('Add ${p.id} to cart')">🛒 Add to Basket</button>`;
+      
+    const explanationHtml = p.explanation 
+      ? `<div class="product-card-explanation">${escapeHtml(p.explanation)}</div>` 
+      : "";
+
+    return `
+      <div class="product-card">
+        ${badges}
+        <div class="product-card-img-wrapper">
+          <div class="product-card-fallback-img">${icon}</div>
+        </div>
+        <div class="product-card-body">
+          <div class="product-card-brand">${escapeHtml(p.brand || "Sainsbury's")}</div>
+          <div class="product-card-title" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+          <div class="product-card-rating">
+            <span class="product-card-rating-stars">${stars}</span>
+            <span>(${p.review_count || 0})</span>
+          </div>
+          <div class="product-card-footer">
+            <div class="product-card-price">£${priceStr}</div>
+            <div class="product-card-status ${availClass}">${escapeHtml(p.availability || "In Stock")}</div>
+          </div>
+          ${explanationHtml}
+          ${actionBtn}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  return `<div class="product-grid-container">${cardsHtml}</div>`;
 }
