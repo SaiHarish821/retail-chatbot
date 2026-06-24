@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -17,8 +17,13 @@ from pydantic import BaseModel
 
 from agents import AgentRouter
 from voice import transcribe_audio
+from acs_bot import ACSBotManager
 
 load_dotenv()
+
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -56,11 +61,15 @@ agent_router = AgentRouter(
     customer_data=CUSTOMER_DATA,
 )
 
+acs_bot_manager = ACSBotManager()
+
+
 # ─── Request / Response models ─────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str
     conversation_history: list[dict] = []
+    is_voice: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -119,11 +128,13 @@ async def chat(request: ChatRequest):
     """
     Route message to the appropriate AI Foundry agent and return response.
     Falls back to GPT-4o direct call if agent routing is unavailable.
+    Pass is_voice=true for the ultra-fast voice path (no extra LLM calls).
     """
     try:
         result = await agent_router.handle(
             message=request.message,
             history=request.conversation_history,
+            is_voice=request.is_voice,
         )
         return ChatResponse(
             reply=result["reply"],
@@ -132,7 +143,35 @@ async def chat(request: ChatRequest):
             suggestions=result.get("suggestions", []),
         )
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/chat/voice", response_model=ChatResponse)
+async def chat_voice(request: ChatRequest):
+    """
+    Dedicated voice endpoint — always uses the ultra-fast path.
+    Skips all LLM classification calls; goes straight to keyword routing + specialist agent.
+    Target latency: <3s end-to-end.
+    """
+    try:
+        result = await agent_router.handle(
+            message=request.message,
+            history=request.conversation_history,
+            is_voice=True,
+        )
+        return ChatResponse(
+            reply=result["reply"],
+            intent=result["intent"],
+            sources=result.get("sources", []),
+            suggestions=result.get("suggestions", []),
+        )
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @app.post("/api/save_results")
@@ -191,4 +230,92 @@ async def voice_speak(text: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/token")
+async def get_token():
+    """
+    Generate an ACS token for WebRTC call connection and return bot identity.
+    """
+    try:
+        return acs_bot_manager.get_token_for_user()
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/call-status")
+async def get_call_status(server_call_id: str):
+    """
+    Retrieve current transcript and status of the call.
+    """
+    try:
+        status_data = acs_bot_manager.active_calls.get(server_call_id)
+        if not status_data:
+            raise HTTPException(status_code=404, detail="Call session not found")
+        return status_data
+    except HTTPException as hexc:
+        raise hexc
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/incoming-call")
+async def incoming_call(request: Request):
+    """
+    Handle incoming call event from ACS Web SDK.
+    """
+    try:
+        body = await request.json()
+        events = body if isinstance(body, list) else [body]
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            
+            # Handle EventGrid validation (might be in event['data'] or flat)
+            validation_code = event.get("validationCode")
+            if not validation_code:
+                data = event.get("data", {})
+                if isinstance(data, dict):
+                    validation_code = data.get("validationCode")
+                    
+            if validation_code:
+                return {"validationResponse": validation_code}
+                
+            # Handle incoming call context (might be in event['data'] or flat)
+            incoming_call_context = event.get("incomingCallContext")
+            if not incoming_call_context:
+                data = event.get("data", {})
+                if isinstance(data, dict):
+                    incoming_call_context = data.get("incomingCallContext")
+                    
+            if incoming_call_context:
+                await acs_bot_manager.answer_incoming_call(incoming_call_context)
+                return {"status": "answering"}
+                
+        return {"status": "ignored"}
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/callback")
+async def call_callback(request: Request):
+    """
+    Callback webhook for Call Automation events.
+    """
+    try:
+        body = await request.json()
+        events = body if isinstance(body, list) else [body]
+        await acs_bot_manager.handle_callback_events(events, agent_router)
+        return {"status": "ok"}
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
 

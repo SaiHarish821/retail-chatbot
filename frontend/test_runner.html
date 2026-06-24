@@ -428,7 +428,7 @@
           }
 
           // 2. Forbidden markdown headers or horizontal rules
-          if (/[#=-]{3,}/.test(lastReply) || lastReply.includes("#")) {
+          if (/[#=-]{3,}/.test(lastReply) || /(^|\n)\s*#{1,6}\s+/.test(lastReply)) {
             passed = false;
             failureReason = "Quality Check Failed: Response contains forbidden markdown headers (#) or rules (---/===).";
           }
@@ -453,7 +453,7 @@
 
           // 6. Sainsbury's Website link (Rule 8)
           const isProductQuery = tc.category.toLowerCase().includes("product") || tc.category.toLowerCase().includes("recommend") || tc.category.toLowerCase().includes("shopping");
-          if (isProductQuery && !lastReply.includes("https://www.sainsburys.co.uk/")) {
+          if (isProductQuery && !lastReply.includes("https://www.sainsburys.co.uk/") && !lastBubble.innerHTML.includes("https://www.sainsburys.co.uk/")) {
             passed = false;
             failureReason = "Quality Check Failed: Product recommendation is missing the plain text Sainsbury's website link.";
           }

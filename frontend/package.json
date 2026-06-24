@@ -1,0 +1,14 @@
+{
+  "name": "retail-chatbot-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@azure/communication-calling": "^1.23.0",
+    "@azure/communication-common": "^2.3.0",
+    "cloudflared": "^0.7.1",
+    "localtunnel": "^2.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

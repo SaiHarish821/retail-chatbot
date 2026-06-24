@@ -4,10 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sainsbury's AI Assistant</title>
+  <script>
+    if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      window.location.replace(window.location.href.replace('http:', 'https:'));
+    }
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f97316'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-size='18'>✦</text></svg>"/>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
 <body>
@@ -159,6 +164,18 @@
       <div id="phonePulse2" class="phone-avatar-pulse-2 pulse-listening"></div>
       <div class="phone-avatar">✦</div>
     </div>
+
+    <div class="voice-visualizer" id="voiceVisualizer">
+      <div class="bar" style="--bar-idx: 1"></div>
+      <div class="bar" style="--bar-idx: 2"></div>
+      <div class="bar" style="--bar-idx: 3"></div>
+      <div class="bar" style="--bar-idx: 4"></div>
+      <div class="bar" style="--bar-idx: 5"></div>
+      <div class="bar" style="--bar-idx: 6"></div>
+      <div class="bar" style="--bar-idx: 7"></div>
+      <div class="bar" style="--bar-idx: 8"></div>
+      <div class="bar" style="--bar-idx: 9"></div>
+    </div>
     
     <div id="phoneStatus" class="phone-status">Connecting...</div>
     
@@ -183,6 +200,7 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<script src="/static/js/azure-communication-services.js"></script>
 <script src="/static/js/app.js"></script>
 </body>
 </html>

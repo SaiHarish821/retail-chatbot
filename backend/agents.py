@@ -197,6 +197,47 @@ class AgentRouter:
         "this one", "that one", "first one", "second one"
     ])
 
+    _DIRECT_ROUTING_KEYWORDS = {
+        "refund": [
+            "refund", "return", "money back", "damaged", "broken", "spoil",
+            "mould", "expired", "faulty", "cashback", "reimburse", "compensation"
+        ],
+        "delivery": [
+            "delivery", "deliver", "tracking", "track", "shipment", "dispatch",
+            "parcel", "package", "arrive", "arrival", "slot", "reschedule", "address",
+            "driver", "eta", "van", "postcode", "slots", "when will it arrive", "live tracking"
+        ],
+        "store": [
+            "store", "branch", "hours", "open", "close", "stock", "aisle", "shelf",
+            "availability", "available", "promotion", "discount", "coupon", "offer", "deal", "sale",
+            "nectar", "points", "loyalty", "reward", "gluten", "vegan", "organic", "ingredient",
+            "contains", "suitable", "nutrition", "nutritional", "calorie", "calories", "protein",
+            "carb", "carbohydrate", "fat", "sugar", "allergen", "allergens", "in stock", "out of stock"
+        ],
+        "order": [
+            "order", "payment", "buy", "purchase", "receipt", "charge", "card", "pay",
+            "nectar points", "balance", "cost", "price", "how much is", "ordered", "recent orders"
+        ]
+    }
+
+    def _get_direct_routing_tasks(self, message: str) -> Optional[list[dict]]:
+        text = message.lower()
+        
+        # Check transition words that suggest multiple actions or a complex query
+        if any(w in text for w in [" and ", " also ", " then ", " but ", " as well ", " addition "]):
+            return None
+            
+        matched_agents = []
+        for agent_type, keywords in self._DIRECT_ROUTING_KEYWORDS.items():
+            if any(kw in text for kw in keywords):
+                matched_agents.append(agent_type)
+                
+        # Only return tasks if exactly one agent is matched
+        if len(matched_agents) == 1:
+            return [{"agent": matched_agents[0], "task_query": message}]
+            
+        return None
+
     def __init__(self, customer_data: dict):
         self.customer_data = customer_data
         self.context = build_context_block(customer_data)
@@ -359,10 +400,24 @@ class AgentRouter:
             except Exception as e:
                 print(f"[AgentRouter] AgentsClient init failed: {e}")
 
-        # ── AzureOpenAI client (fallback for classification/merge) ───────────
-        # On serverless (Vercel), we skip AIProjectClient (which requires AzureCliCredential)
-        # and directly initialize AzureOpenAI with the API key for guaranteed fallback.
-        if project_endpoint and not is_serverless and not self._openai_client:
+        # ── AzureOpenAI client ────────────────────────────────────────────────
+        # Prioritise direct AzureOpenAI key-based client for lowest latency if API key is provided
+        if api_key and openai_endpoint:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(openai_endpoint)
+                base = f"{parsed.scheme}://{parsed.netloc}"
+                self._openai_client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=base,
+                    api_version="2024-10-21",
+                )
+                print(f"[AgentRouter] OpenAI client initialised directly via API key on base: {base}")
+            except Exception as e:
+                print(f"[AgentRouter] Direct AzureOpenAI init failed: {e}")
+
+        # Fallback to AIProjectClient (uses AzureCliCredential/DefaultAzureCredential)
+        if not self._openai_client and project_endpoint and not is_serverless:
             try:
                 from azure.ai.projects import AIProjectClient
                 credential = AzureCliCredential(tenant_id=tenant_id)
@@ -373,17 +428,6 @@ class AgentRouter:
                 print("[AgentRouter] OpenAI client initialised via AIProjectClient.")
             except Exception as e:
                 print(f"[AgentRouter] AIProjectClient OpenAI init failed: {e}")
-
-        if not self._openai_client and api_key and openai_endpoint:
-            from urllib.parse import urlparse
-            parsed = urlparse(openai_endpoint)
-            base = f"{parsed.scheme}://{parsed.netloc}"
-            self._openai_client = AzureOpenAI(
-                api_key=api_key,
-                azure_endpoint=base,
-                api_version="2024-10-21",
-            )
-            print(f"[AgentRouter] AzureOpenAI client initialised via API key on base: {base}")
 
     def _resolve_agent_ids(self) -> None:
         """Map Foundry agent names (from .env) to their runtime asst_* IDs."""
@@ -408,7 +452,7 @@ class AgentRouter:
             for role, agent_name in name_map.items():
                 if agent_name in available:
                     self._agent_ids[role] = available[agent_name]
-                    print(f"[AgentRouter]   {role}: '{agent_name}' → {available[agent_name]}")
+                    print(f"[AgentRouter]   {role}: '{agent_name}' -> {available[agent_name]}")
                 else:
                     print(f"[AgentRouter]   {role}: '{agent_name}' NOT FOUND in Foundry.")
         except Exception as e:
@@ -727,8 +771,14 @@ class AgentRouter:
             return f"Excellent customer ratings and {reason}."
 
         lines = []
+        products_json_list = []
         for p, _ in matched[:limit]:
             disc      = p.get("discount", {})
+            if isinstance(disc, str):
+                try:
+                    disc = json.loads(disc)
+                except Exception:
+                    disc = {}
             offer_str = disc.get("offer_text", "") if disc.get("is_on_sale") else p.get("promotion_detail", "")
             total_qty = sum(sinfo.get("quantity", 0) for sinfo in p.get("stock", {}).values())
             avail     = ("Out of Stock" if total_qty == 0
@@ -750,10 +800,33 @@ class AgentRouter:
             card_parts.append(f"Reason:\n{generate_explanation(p)}")
             lines.append("\n".join(card_parts))
 
+            # Build product entry for visual UI
+            product_entry = {
+                "id": p["product_id"],
+                "name": p["name"],
+                "brand": p.get("brand", "Sainsbury's"),
+                "price": p["price"],
+                "customer_rating": p.get("customer_rating", 4.0),
+                "review_count": p.get("review_count", 100),
+                "best_seller": bool(p.get("best_seller")),
+                "store_recommended": bool(p.get("store_recommended")),
+                "is_on_promotion": bool(p.get("is_on_promotion")),
+                "promotion_detail": offer_str,
+                "availability": avail,
+                "aisle": p.get("aisle", "N/A"),
+                "explanation": generate_explanation(p),
+                "category": p.get("category", "")
+            }
+            products_json_list.append(product_entry)
+
+        grid_json = json.dumps(products_json_list)
+        grid_xml = f"<product-grid>{grid_json}</product-grid>"
+
         return (
             prefix
             + "Matched Product Catalog Recommendations:\n\n"
             + "\n\n".join(lines)
+            + "\n\n" + grid_xml
             + "\n\nYou can order these items directly on the Sainsbury's website "
               "(https://www.sainsburys.co.uk/)."
         )
@@ -891,7 +964,7 @@ class AgentRouter:
     # Domain Classification
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _classify_domain(self, message: str, history: list[dict]) -> str:
+    def _classify_domain(self, message: str, history: list[dict], is_voice: bool = False) -> str:
         """
         Returns 'retail' or 'general'.
 
@@ -902,6 +975,13 @@ class AgentRouter:
         4. Default to 'retail' (safe fallback for a retail assistant)
         """
         text_lower = message.lower()
+
+        # For voice calls, bypass LLM domain classification to guarantee sub-1.5s latency.
+        # Default to 'retail' unless clear general indicators are matched.
+        if is_voice:
+            if any(kw in text_lower for kw in self._GENERAL_KEYWORDS):
+                return "general"
+            return "retail"
 
         # 1. Retail keyword match
         if any(kw in text_lower for kw in self._RETAIL_KEYWORDS):
@@ -945,7 +1025,7 @@ class AgentRouter:
         # 4. Safe default
         return "retail"
 
-    def _classify_intent(self, message: str, history: list[dict]) -> str:
+    def _classify_intent(self, message: str, history: list[dict], is_voice: bool = False) -> str:
         """
         Classifies the intent of the message in the context of the conversation history.
         Classification order/priority:
@@ -954,11 +1034,19 @@ class AgentRouter:
         3. Is this a new retail request? ('new_retail')
         4. Is this a new general knowledge question? ('new_general')
         """
+        # For voice calls, bypass LLM intent classification to guarantee sub-1.5s latency.
+        # Check acknowledgements first, then fallback to voice-optimized domain classification.
+        if is_voice:
+            cleaned = re.sub(r'[^\w\s]', '', message).lower().strip()
+            if cleaned in self._ACKNOWLEDGEMENTS:
+                return "clarification_confirmation"
+            domain = self._classify_domain(message, history, is_voice)
+            return "new_retail" if domain == "retail" else "new_general"
         # First check if there is conversation history
         assistant_turns = [t for t in history if t.get("role") == "assistant"]
         if not assistant_turns:
             # No history: must be a new request
-            domain = self._classify_domain(message, history)
+            domain = self._classify_domain(message, history, is_voice)
             return "new_retail" if domain == "retail" else "new_general"
 
         # Check local exact-match acknowledgements list first
@@ -1015,7 +1103,7 @@ class AgentRouter:
                 print(f"[AgentRouter] Intent classification LLM call failed: {e}")
 
         # Fallback to domain classification
-        domain = self._classify_domain(message, history)
+        domain = self._classify_domain(message, history, is_voice)
         return "new_retail" if domain == "retail" else "new_general"
 
     async def _resolve_context(self, message: str, history: list[dict]) -> dict[str, Any]:
@@ -1318,17 +1406,21 @@ class AgentRouter:
 
         # ── 6. Poll and handle tool calls ────────────────────────────────────
         max_wait    = 120   # seconds
-        poll_interval = 1.5 # seconds
         elapsed     = 0.0
         terminal    = {"completed", "failed", "cancelled", "expired"}
 
+        # Dynamic polling interval for real-time voice experience
+        current_poll = 0.1
         while run.status not in terminal:
             if elapsed >= max_wait:
                 print(f"[AgentRouter] Run timed out after {max_wait}s.")
                 break
 
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
+            await asyncio.sleep(current_poll)
+            elapsed += current_poll
+            
+            # Backoff polling slightly to avoid overloading the API
+            current_poll = min(current_poll + 0.05, 0.4)
 
             run = await loop.run_in_executor(
                 None,
@@ -1416,19 +1508,19 @@ class AgentRouter:
         The Supervisor-Agent's system prompt (in Foundry) instructs it to
         return a JSON list of {agent, task_query} routing objects.
 
-        Falls back to keyword classifier if:
+        Falls back to direct LLM call or keyword classifier if:
         - Supervisor-Agent ID is not resolved
         - Foundry call fails
         - Response cannot be parsed as valid routing JSON
         """
         supervisor_id = self._agent_ids.get("supervisor")
+        history_snippet = "\n".join(
+            f"{t['role'].upper()}: {t['content']}"
+            for t in history[-5:]
+        )
 
         if supervisor_id and self._agents_client:
             # Build a structured routing request for the Supervisor-Agent
-            history_snippet = "\n".join(
-                f"{t['role'].upper()}: {t['content']}"
-                for t in history[-5:]
-            )
             routing_request = (
                 f"CONVERSATION HISTORY:\n{history_snippet}\n\n"
                 f"CURRENT USER MESSAGE: {message}\n\n"
@@ -1457,34 +1549,89 @@ class AgentRouter:
             except Exception as e:
                 print(f"[AgentRouter] Supervisor routing failed: {e}. Using fallback.")
 
+        # Direct LLM fallback if Supervisor Agent is not in Foundry but OpenAI client is available
+        if self._openai_client:
+            routing_prompt = (
+                "You are the Supervisor Agent for a Sainsbury's retail chatbot.\n"
+                "Your task is to decompose the user's message into one or more routing tasks for specialist agents.\n\n"
+                "Available Agents:\n"
+                "- 'order': Handles order details, payment, confirmation, order history, Nectar points, account balance, general order queries.\n"
+                "- 'refund': Handles refunds, returns, damaged/spoiled items, refund status, refund reference, policy window queries, expired return window policy.\n"
+                "- 'delivery': Handles delivery tracking, delivery slots, ETA, driver details, live tracking map, address updates/postcode verification, delivery rescheduling/slot changes.\n"
+                "- 'store': Handles store hours, locations, in-store product availability/stock check, Click & Collect eligibility, promotions, coupons, discounts, product information, nutrition, allergens, gluten, vegan diets.\n\n"
+                "Routing Rules:\n"
+                "- If a query is in Hinglish or is a general order status question, route it to 'order' unless it specifically asks for a refund or rescheduling.\n"
+                "- If the query is about confirming if the address/postcode is correct for an order, route it to 'delivery'.\n"
+                "- Respond ONLY with a valid JSON array of objects, each containing 'agent' and 'task_query' keys.\n"
+                "Example: [{\"agent\": \"delivery\", \"task_query\": \"Check delivery ETA for ORD-99102\"}]\n"
+                "Do not include markdown blocks or any other text."
+            )
+            try:
+                deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+                loop = asyncio.get_event_loop()
+                def call_completion():
+                    return self._openai_client.chat.completions.create(
+                        model=deployment,
+                        messages=[
+                            {"role": "system", "content": routing_prompt},
+                            {"role": "user", "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nCURRENT USER MESSAGE: {message}"}
+                        ],
+                        max_tokens=150,
+                        temperature=0.0,
+                    )
+                res = await loop.run_in_executor(None, call_completion)
+                content = res.choices[0].message.content.strip()
+                clean = re.sub(r"^```(?:json)?\n?", "", content)
+                clean = re.sub(r"\n?```$", "", clean)
+                tasks = json.loads(clean)
+                if (
+                    isinstance(tasks, list)
+                    and all("agent" in t and "task_query" in t for t in tasks)
+                ):
+                    print(f"[AgentRouter] Supervisor direct LLM routing fallback: {tasks}")
+                    return tasks
+            except Exception as e:
+                print(f"[AgentRouter] Supervisor direct LLM routing fallback failed: {e}")
+
         # Keyword fallback
         intent = self._classify_fallback(message)
         return [{"agent": intent, "task_query": message}]
 
     def _classify_fallback(self, message: str) -> str:
-        """Keyword-based routing fallback (no LLM call)."""
+        """Keyword-based routing fallback (no LLM call). Covers broad spoken query patterns."""
         text = message.lower()
-        if any(w in text for w in ["refund", "return", "money back", "damaged",
-                                    "broken", "spoil", "mould", "expire"]):
-            return "refund"
-        if any(w in text for w in ["reschedule", "change address", "live tracking",
-                                    "tracking link", "tracking url", "what time",
-                                    "arriving today", "eta", "driver", "arrival time",
-                                    "when will it arrive"]):
-            return "delivery"
+
+        # Refund / Returns
         if any(w in text for w in [
-            "recommend", "suggestion", "suggest", "product", "item", "range",
-            "allergen", "gluten", "vegan", "organic", "dairy", "nutrition", "sugar",
-            "protein", "lactose", "healthy", "snack", "breakfast",
-            "promotion", "discount", "coupon", "offer", "deal", "code", "sale",
-            "aisle", "store", "branch", "hours", "timings", "open",
-            "stock", "availability", "click and collect", "collect",
-            "electronics", "gadget", "fitness", "tracker", "headphone", "kindle",
-            "new arrival", "seasonal",
+            "refund", "return", "money back", "damaged", "broken",
+            "spoil", "mould", "expire", "compensation", "reimburse",
+            "get my money", "want my money", "credit", "receipt",
+        ]):
+            return "refund"
+
+        # Delivery / Tracking
+        if any(w in text for w in [
+            "delivery", "deliver", "track", "tracking", "where is my",
+            "where's my", "when will it", "arriving", "arrived", "arrive",
+            "eta", "driver", "van", "slot", "reschedule", "change address",
+            "live tracking", "on its way", "out for delivery", "estimated",
+            "shipping", "shipment", "courier", "dispatch", "parcel",
+        ]):
+            return "delivery"
+
+        # Store / Products / Promotions
+        if any(w in text for w in [
+            "store", "shop", "branch", "open", "hours", "timings", "location",
+            "stock", "availability", "product", "item", "range", "aisle",
+            "price", "cost", "how much", "recommend", "suggest", "suggest",
+            "allergen", "gluten", "vegan", "organic", "dairy", "nutrition",
+            "calories", "protein", "carbs", "sugar", "fibre", "ingredients",
+            "promotion", "discount", "coupon", "offer", "deal", "sale",
+            "click and collect", "collect", "pickup", "click", "buy",
         ]):
             return "store"
-        if any(w in text for w in ["driver", "van", "slot", "eta"]):
-            return "delivery"
+
+        # Orders — default retail fallback
         return "order"
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -1725,36 +1872,338 @@ class AgentRouter:
             
         return default_suggestions
 
+    def clean_name_for_matching(self, name: str) -> str:
+        # Remove volume/weight descriptors at the end (e.g. 2L, 800g, 12pk, 500ml, etc.)
+        cleaned = re.sub(r'\s+\d+(?:l|g|pk|ml|pack|kg|%)\s*$', '', name, flags=re.IGNORECASE)
+        cleaned = cleaned.replace("approx", "").strip()
+        return cleaned
+
+    def append_product_grid_if_mentioned(self, reply: str) -> str:
+        try:
+            data = self._load_inventory_data()
+            products = data.get("inventory", [])
+        except Exception:
+            return reply
+
+        matched_products = []
+        reply_lower = reply.lower()
+        
+        # Sort products by length of name descending, so longer matches are checked first
+        sorted_products = sorted(products, key=lambda x: len(x["name"]), reverse=True)
+        
+        for p in sorted_products:
+            clean_name = self.clean_name_for_matching(p["name"])
+            # Match using word boundaries to avoid matching short substrings inside other words
+            # e.g., 'rice' matching inside 'price' or 'butter' matching inside 'butterfly'
+            pattern = r'\b' + re.escape(clean_name.lower()) + r'\b'
+            if re.search(pattern, reply_lower):
+                if p not in matched_products:
+                    matched_products.append(p)
+                    
+        if matched_products:
+            # Cap at 3 product cards to keep the UI clean
+            matched_products = matched_products[:3]
+            products_json_list = []
+            for p in matched_products:
+                disc = p.get("discount", {})
+                if isinstance(disc, str):
+                    try:
+                        disc = json.loads(disc)
+                    except Exception:
+                        disc = {}
+                offer_str = disc.get("offer_text", "") if disc.get("is_on_sale") else p.get("promotion_detail", "")
+                total_qty = sum(sinfo.get("quantity", 0) for sinfo in p.get("stock", {}).values())
+                avail     = ("Out of Stock" if total_qty == 0
+                             else ("Limited Availability" if total_qty <= 8 else "In Stock"))
+                
+                explanation = ""
+                if p.get("best_seller"):
+                    explanation = f"One of our best-selling items, rated {p['customer_rating']:.1f} stars."
+                elif p.get("store_recommended"):
+                    explanation = "Highly recommended by our store managers."
+                elif p.get("is_on_promotion"):
+                    explanation = f"Currently on promotion: {offer_str}."
+                else:
+                    explanation = p.get("description", "")[:120] + "..."
+
+                products_json_list.append({
+                    "id": p["product_id"],
+                    "name": p["name"],
+                    "brand": p.get("brand", "Sainsbury's"),
+                    "price": p["price"],
+                    "customer_rating": p.get("customer_rating", 4.0),
+                    "review_count": p.get("review_count", 100),
+                    "best_seller": bool(p.get("best_seller")),
+                    "store_recommended": bool(p.get("store_recommended")),
+                    "is_on_promotion": bool(p.get("is_on_promotion")),
+                    "promotion_detail": offer_str,
+                    "availability": avail,
+                    "aisle": p.get("aisle", "N/A"),
+                    "explanation": explanation,
+                    "category": p.get("category", "")
+                })
+                
+            grid_json = json.dumps(products_json_list)
+            grid_xml = f"<product-grid>{grid_json}</product-grid>"
+            return reply + "\n\n" + grid_xml
+
+        return reply
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Static Suggestion Fallback (instant – no LLM call)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    _STATIC_SUGGESTIONS: dict[str, list[str]] = {
+        "order":    ["View my recent orders", "Check order payment", "Show Nectar points"],
+        "delivery": ["Track my delivery", "Change delivery slot", "Update delivery address"],
+        "refund":   ["Check refund status", "How long does a refund take?", "Request a replacement"],
+        "store":    ["Check product stock", "Show store hours", "Active promotions"],
+        "general":  ["Track my order", "Find nearest store", "Check product stock"],
+    }
+
+    def _static_suggestions(self, intent: str) -> list[str]:
+        return self._STATIC_SUGGESTIONS.get(intent, self._STATIC_SUGGESTIONS["general"])
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # JSON Bleed-Through Detection
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _is_raw_routing_json(self, text: str) -> bool:
+        """Detect if a Foundry agent returned its routing plan JSON instead of a real reply."""
+        stripped = text.strip()
+        if not (stripped.startswith("[") or stripped.startswith("{")):
+            return False
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+                if "agent" in parsed[0] and "task_query" in parsed[0]:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Voice-Optimised Direct OpenAI Call (sub-1s path)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    async def _call_voice_openai(
+        self, message: str, customer_data: dict, history: list[dict]
+    ) -> str:
+        """
+        Direct AzureOpenAI call for voice — bypasses Foundry agents entirely.
+
+        Key design decisions for sub-1s latency:
+        - No Foundry thread creation or polling (saves 3-8s)
+        - max_tokens=120 forces 1-3 sentence replies (less to generate)
+        - No tool calls — all customer data embedded in system prompt
+        - Runs in executor (non-blocking)
+        - temperature=0.0 for deterministic fast output
+        """
+        if not self._openai_client:
+            return ""
+
+        # ── Build a compact voice-ready customer summary ──────────────────────
+        # customer_data has shape: {"customer": {...}, "orders": [...]}
+        cust    = customer_data.get("customer") or customer_data
+        orders  = customer_data.get("orders", [])
+        name    = cust.get("name", "there")
+        loyalty = cust.get("loyalty_points", 0)
+        email   = cust.get("email", "")
+
+        # Summarise most recent order (field names match the DB schema)
+        recent_order_summary = "No recent orders found."
+        if orders:
+            o        = orders[-1]
+            delivery = o.get("delivery") or {}
+            # delivery may be a serialised string in some DB paths, handle it
+            if isinstance(delivery, str):
+                delivery = {}
+            refund   = o.get("refund") or {}
+            if isinstance(refund, str):
+                refund = {}
+            items = o.get("items") or []
+            items_str = ""
+            if isinstance(items, list):
+                items_str = ", ".join(
+                    f"{it.get('name','item')} x{it.get('qty', it.get('quantity', 1))}"
+                    for it in items[:4]
+                )
+            recent_order_summary = (
+                f"Latest order {o.get('order_id','')}: {items_str or 'items unavailable'}. "
+                f"Status: {o.get('status','unknown')}. "
+                f"Total: £{o.get('total', o.get('total_price', 0)):.2f}. "
+                f"Delivery: {delivery.get('method','N/A')}. "
+                f"Slot: {delivery.get('slot', 'N/A')}. "
+                f"Driver: {delivery.get('driver','N/A')}. "
+            )
+            if refund.get("reference") or refund.get("refund_id"):
+                ref_id  = refund.get("reference") or refund.get("refund_id", "")
+                ref_amt = refund.get("amount") or refund.get("refund_amount", 0)
+                recent_order_summary += (
+                    f"Refund {ref_id}: £{ref_amt:.2f} - {refund.get('status','')}. "
+                    f"Reason: {refund.get('reason','')}."
+                )
+
+        # All orders summary (last 3)
+        all_orders_summary = ""
+        for o in orders[-3:]:
+            all_orders_summary += (
+                f"Order {o.get('order_id','')}: "
+                f"status={o.get('status','')}, "
+                f"total=£{o.get('total', o.get('total_price', 0)):.2f}. "
+            )
+
+        voice_system_prompt = f"""You are a friendly Sainsbury's voice assistant on a phone call with {name}.
+
+CUSTOMER DATA:
+- Name: {name}
+- Email: {email}
+- Nectar points: {loyalty}
+- {recent_order_summary}
+- All recent orders: {all_orders_summary}
+
+VOICE RULES (MUST FOLLOW):
+1. Reply in EXACTLY ONE SHORT SENTENCE (under 20 words). Never more.
+2. Be extremely concise, natural, and direct. Talk like a real person on a phone call.
+3. Never use bullet points, markdown, lists, or headers.
+4. Give the specific answer directly using the customer data.
+5. Do not use filler phrases or say "I'd be happy to help".
+6. End with a short question only if you need more information from the customer."""
+
+        deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+
+        # Build message history (last 3 turns only)
+        msgs: list[dict] = [{"role": "system", "content": voice_system_prompt}]
+        for t in history[-3:]:
+            r = t.get("role", "user")
+            c = t.get("content", "").strip()
+            if r in ("user", "assistant") and c:
+                # Truncate long history entries to save tokens
+                msgs.append({"role": r, "content": c[:200]})
+        msgs.append({"role": "user", "content": message})
+
+        try:
+            import time
+            loop = asyncio.get_event_loop()
+
+            def _call():
+                t0 = time.perf_counter()
+                res = self._openai_client.chat.completions.create(
+                    model=deployment,
+                    messages=msgs,
+                    max_tokens=60,     # hard cap → forces short answers
+                    temperature=0.0,    # deterministic, fastest
+                    top_p=1.0,
+                    frequency_penalty=0.0,
+                    presence_penalty=0.0,
+                )
+                dt = time.perf_counter() - t0
+                print(f"[AgentRouter][VOICE] completions call took {dt:.3f}s")
+                return res
+
+            t_start = time.perf_counter()
+            resp  = await loop.run_in_executor(None, _call)
+            t_done = time.perf_counter() - t_start
+            reply = resp.choices[0].message.content.strip()
+            print(f"[AgentRouter][VOICE] Reply ({resp.usage.completion_tokens} tokens) in {t_done:.3f}s: {reply[:100]}")
+            return reply
+
+        except Exception as e:
+            print(f"[AgentRouter][VOICE] Direct OpenAI call failed: {e}")
+            return ""
+
     # ─────────────────────────────────────────────────────────────────────────
     # Public Handler – Main Orchestration Entry Point
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def handle(self, message: str, history: list[dict]) -> dict[str, Any]:
+    async def handle(self, message: str, history: list[dict], is_voice: bool = False) -> dict[str, Any]:
         """
-        Orchestrates the full request lifecycle:
+        Dual-path orchestration:
 
-        1.  Reload customer context from DB (fresh per request)
-        2.  Resolve follow-up intent and context if applicable
-        3.  Classify domain: retail vs general
-        4.  General → route to General-Assistant-Agent (or polite decline)
-        5.  Retail → check DB for product-info questions
-        6.  Product found in DB → return catalog card directly
-        7.  Otherwise → Supervisor-Agent decomposes → specialist agents invoked
-        8.  Merge replies (via Supervisor or local join)
-        9.  Validate & sanitize output
-        10. Return {reply, intent, sources}
+        VOICE PATH (is_voice=True) – ultra-low latency (~2-4s total):
+          1. Instant greeting short-circuit
+          2. Keyword-only routing (no LLM classification)
+          3. Single specialist Foundry agent call
+          4. Static suggestions (no LLM)
+
+        CHAT PATH (is_voice=False) – full detail pipeline:
+          1. Greeting short-circuit
+          2. Intent + domain classification (LLM where needed)
+          3. Follow-up context resolution
+          4. Product-info DB lookup
+          5. Supervisor decomposition or direct routing
+          6. Parallel specialist agent calls
+          7. Dynamic suggestions
+          8. Validate & sanitize
         """
-        # ── 1. Refresh context ────────────────────────────────────────────────
+
+        # ── Shared: instant greeting/pleasantry short-circuit ─────────────────
+        cleaned_msg = re.sub(r'[^\w\s]', '', message).lower().strip()
+
+        if cleaned_msg in ("hello", "hi", "hey", "good morning", "good afternoon",
+                           "good evening", "hello there", "hi there"):
+            return {
+                "reply": "Hello! How can I help you with your Sainsbury's orders, deliveries, refunds, or product stock today? 😊",
+                "intent": "store",
+                "sources": ["local_greeting"],
+                "suggestions": ["Track my order", "Find nearest store", "Check product stock"],
+            }
+
+        if cleaned_msg in ("can you hear me", "can you hear me now", "is anyone there",
+                           "is anybody there", "anyone there", "anybody there"):
+            return {
+                "reply": "Yes, I can hear you clearly! How can I help you with your Sainsbury's orders, deliveries, or refunds today? 😊",
+                "intent": "store",
+                "sources": ["local_greeting"],
+                "suggestions": ["Track my order", "Find nearest store", "Check product stock"],
+            }
+
+        if cleaned_msg in ("thanks", "thank you", "thank you very much", "cheers", "great thanks"):
+            return {
+                "reply": "You're very welcome! Let me know if there is anything else I can do for you. 😊",
+                "intent": "store",
+                "sources": ["local_greeting"],
+                "suggestions": ["Track my order", "Find nearest store", "Check product stock"],
+            }
+
+        # ── Refresh customer context ──────────────────────────────────────────
         customer_data = self._load_customer_data()
         self.context  = build_context_block(customer_data)
 
-        # ── 2. Follow-up Intent Resolution ────────────────────────────────────
-        intent = self._classify_intent(message, history)
+        # ═════════════════════════════════════════════════════════════════════
+        # VOICE FAST PATH — Direct OpenAI call, no Foundry agents
+        # Target: <1s total (direct API call, short tokens, no thread overhead)
+        # ═════════════════════════════════════════════════════════════════════
+        if is_voice:
+            print(f"[AgentRouter][VOICE] Ultra-fast path for: {message[:80]}")
+
+            # Route to correct domain for logging
+            agent_type = self._classify_fallback(message)
+            print(f"[AgentRouter][VOICE] Domain: {agent_type}")
+
+            reply = await self._call_voice_openai(message, customer_data, history)
+
+            if not reply:
+                reply = "I'm sorry, could you say that again?"
+
+            return {
+                "reply":       reply,
+                "intent":      agent_type,
+                "sources":     ["voice_direct"],
+                "suggestions": self._static_suggestions(agent_type),
+            }
+
+
+        # ═════════════════════════════════════════════════════════════════════
+        # CHAT FULL PIPELINE — detailed responses with full agent routing
+        # ═════════════════════════════════════════════════════════════════════
+
+        # ── 1. Intent classification ──────────────────────────────────────────
+        intent = self._classify_intent(message, history, is_voice=False)
         print(f"[AgentRouter] Intent: {intent} | Message: {message[:80]}")
 
         is_follow_up = intent in ("follow_up", "clarification_confirmation")
         if is_follow_up:
-            # ── 3. Context Resolution ──────────────────────────────────────────
             resolution = await self._resolve_context(message, history)
             print(f"[AgentRouter] Context Resolution: {resolution}")
             if resolution["type"] == "clarification":
@@ -1771,11 +2220,11 @@ class AgentRouter:
                 message = resolution["query"]
                 print(f"[AgentRouter] Standalone resolved message: {message}")
 
-        # ── 4. Domain classification ──────────────────────────────────────────
-        domain = self._classify_domain(message, history)
+        # ── 2. Domain classification ──────────────────────────────────────────
+        domain = self._classify_domain(message, history, is_voice=False)
         print(f"[AgentRouter] Domain: {domain} | Resolved Message: {message[:80]}")
 
-        # ── 5. General-knowledge questions ────────────────────────────────────
+        # ── 3. General-knowledge questions ────────────────────────────────────
         if domain == "general" or (intent == "new_general" and not is_follow_up):
             general_id = self._agent_ids.get("general")
             if general_id and self._agents_client:
@@ -1786,19 +2235,18 @@ class AgentRouter:
                         task_query=message,
                         history=history,
                     )
-                    validated = await self._run_validation_layer(message, reply)
-                    suggestions = await self._generate_suggestions(message, validated, "general", history)
-                    return {
-                        "reply":       validated,
-                        "intent":      "general",
-                        "sources":     ["general_assistant_agent"],
-                        "suggestions": suggestions,
-                    }
+                    if not self._is_raw_routing_json(reply):
+                        validated = await self._run_validation_layer(message, reply)
+                        suggestions = await self._generate_suggestions(message, validated, "general", history)
+                        return {
+                            "reply":       validated,
+                            "intent":      "general",
+                            "sources":     ["general_assistant_agent"],
+                            "suggestions": suggestions,
+                        }
                 except Exception as e:
                     print(f"[AgentRouter] General-Assistant-Agent call failed: {e}")
-                    # Fall through to polite decline
 
-            # Polite decline fallback (no General-Assistant-Agent configured)
             decline = (
                 "I'm your Sainsbury's retail assistant, here to help with shopping, "
                 "products, orders, deliveries, refunds, stores, and offers. "
@@ -1813,11 +2261,12 @@ class AgentRouter:
                 "suggestions": suggestions,
             }
 
-        # ── 4. Retail: product-info DB lookup first ───────────────────────────
+        # ── 4. Retail: product-info DB lookup ─────────────────────────────────
         db_result = self._search_db_for_product_question(message)
         if db_result:
             print("[AgentRouter] Answered from product catalog DB directly.")
             validated = await self._run_validation_layer(message, db_result)
+            validated = self.append_product_grid_if_mentioned(validated)
             suggestions = await self._generate_suggestions(message, validated, "store", history)
             return {
                 "reply":       validated,
@@ -1826,22 +2275,20 @@ class AgentRouter:
                 "suggestions": suggestions,
             }
 
-        # ── 5. Supervisor decomposition (Foundry-driven routing) ─────────────
-        tasks = await self._decompose_via_supervisor(message, history)
-        print(f"[AgentRouter] Tasks: {tasks}")
+        # ── 5. Routing: direct keywords or Supervisor decomposition ───────────
+        tasks = self._get_direct_routing_tasks(message)
+        if tasks:
+            print(f"[AgentRouter] Direct keyword routing: {tasks}")
+        else:
+            tasks = await self._decompose_via_supervisor(message, history)
+            print(f"[AgentRouter] Supervisor routing tasks: {tasks}")
 
-        replies = []
-        sources = []
-
-        # ── 6. Invoke specialist agents ───────────────────────────────────────
-        for task in tasks:
+        # ── 6. Invoke specialist agents (parallel when multiple tasks) ────────
+        async def call_agent(task: dict) -> str:
             agent_type = task.get("agent", "order")
             task_query = task.get("task_query", message)
             agent_id   = self._agent_ids.get(agent_type)
 
-            sources.append(f"{agent_type}_agent")
-
-            # ── Foundry agent path ────────────────────────────────────────────
             if agent_id and self._agents_client:
                 try:
                     reply = await self._call_foundry_agent(
@@ -1850,90 +2297,71 @@ class AgentRouter:
                         task_query=task_query,
                         history=history,
                     )
-                    replies.append(reply)
-                    continue
+                    # If agent echoed back routing JSON, fall through to OpenAI
+                    if not self._is_raw_routing_json(reply):
+                        return reply
+                    print(f"[AgentRouter] JSON bleed-through detected for {agent_type}, using OpenAI fallback.")
                 except Exception as e:
-                    print(f"[AgentRouter] Foundry {agent_type} agent failed: {e}. "
-                          "Falling back to OpenAI direct.")
+                    print(f"[AgentRouter] Foundry {agent_type} agent failed: {e}. Falling back.")
 
-            # ── OpenAI direct fallback (no Foundry agent available) ───────────
+            # OpenAI direct fallback
             if self._openai_client:
                 try:
                     deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
-                    messages_payload = [
-                        {"role": "system", "content": self.context},
-                    ]
-                    for turn in history[-4:]:
-                        r = turn.get("role", "user")
-                        c = turn.get("content", "").strip()
+                    msgs = [{"role": "system", "content": self.context}]
+                    for t in history[-4:]:
+                        r, c = t.get("role", "user"), t.get("content", "").strip()
                         if r in ("user", "assistant") and c:
-                            messages_payload.append({"role": r, "content": c})
-                    messages_payload.append({"role": "user", "content": task_query})
-
-                    # Determine which tools to pass for this agent type
+                            msgs.append({"role": r, "content": c})
+                    msgs.append({"role": "user", "content": task_query})
                     tools = self._agent_tools.get(agent_type, [])
                     resp  = self._openai_client.chat.completions.create(
                         model=deployment,
-                        messages=messages_payload,
+                        messages=msgs,
                         tools=tools if tools else None,
                         tool_choice="auto" if tools else None,
                         max_tokens=800,
                         temperature=0.0,
                     )
                     msg = resp.choices[0].message
-
-                    # Handle tool calls in fallback path
                     if msg.tool_calls:
-                        messages_payload.append(msg)
+                        msgs.append(msg)
                         for tc in msg.tool_calls:
-                            fname  = tc.function.name
-                            fargs  = json.loads(tc.function.arguments)
-                            result = self._execute_tool(fname, fargs)
-                            messages_payload.append({
-                                "role":         "tool",
-                                "tool_call_id": tc.id,
-                                "name":         fname,
-                                "content":      result,
-                            })
-                        # Refresh context after possible mutations
-                        updated    = self._load_customer_data()
+                            result = self._execute_tool(tc.function.name, json.loads(tc.function.arguments))
+                            msgs.append({"role": "tool", "tool_call_id": tc.id,
+                                         "name": tc.function.name, "content": result})
+                        updated = self._load_customer_data()
                         self.context = build_context_block(updated)
-                        messages_payload[0]["content"] = self.context
-
+                        msgs[0]["content"] = self.context
                         final = self._openai_client.chat.completions.create(
-                            model=deployment,
-                            messages=messages_payload,
-                            max_tokens=800,
-                            temperature=0.0,
-                        )
-                        replies.append(final.choices[0].message.content.strip())
-                    else:
-                        replies.append(msg.content.strip())
-
+                            model=deployment, messages=msgs, max_tokens=800, temperature=0.0)
+                        return final.choices[0].message.content.strip()
+                    return msg.content.strip()
                 except Exception as e:
                     print(f"[AgentRouter] OpenAI fallback failed for {agent_type}: {e}")
-                    replies.append(
-                        f"I'm sorry, I had trouble processing your {agent_type} request. "
-                        "Please try again or contact our support team."
-                    )
-            else:
-                replies.append(
-                    f"I'm sorry, the {agent_type} specialist is currently unavailable. "
-                    "Please try again shortly."
-                )
+
+            return (f"I'm sorry, the {agent_type} specialist is currently unavailable. "
+                    "Please try again shortly.")
+
+        # Run all agent tasks in parallel
+        replies = await asyncio.gather(*[call_agent(t) for t in tasks])
+        sources = [f"{t.get('agent', 'order')}_agent" for t in tasks]
 
         if not replies:
             replies = ["I'm sorry, I was unable to process your request. Please try again."]
 
         # ── 7. Merge replies ──────────────────────────────────────────────────
-        merged = await self._merge_replies(message, tasks, replies)
+        merged = await self._merge_replies(message, tasks, list(replies))
 
-        # ── 8. Validate & sanitize ────────────────────────────────────────────
+        # ── 8. Validate, sanitize, append product grid ────────────────────────
         validated = await self._run_validation_layer(message, merged)
+        if domain != "general":
+            validated = self.append_product_grid_if_mentioned(validated)
 
-        # ── 9. Return result ──────────────────────────────────────────────────
+        # ── 9. Dynamic suggestions ────────────────────────────────────────────
         primary_intent = tasks[0]["agent"] if tasks else "order"
         suggestions = await self._generate_suggestions(message, validated, primary_intent, history)
+
         return {
             "reply":       validated,
             "intent":      primary_intent,

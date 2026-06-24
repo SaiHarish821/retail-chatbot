@@ -31,7 +31,7 @@ let currentAudioElement = null; // High-quality Azure neural voice audio
 let phoneCurrentTurnTranscript = "";
 let phoneAccumulatedTurnTranscript = ""; // Accumulates finalized transcripts across browser restarts
 let phoneHasDetectedSpeechFallback = false;
-const PHONE_SILENCE_DURATION = 4500; // 4.5 seconds silence detection for Phone Call Mode to avoid cutting off user
+const PHONE_SILENCE_DURATION = 1500; // 1.5 seconds silence detection for Phone Call Mode to avoid cutting off user
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -1131,13 +1131,7 @@ function speakPhoneCallText(text) {
     startListeningForCall();
     return;
   }
-  
-  // Clean up previous audio element
-  if (currentAudioElement) {
-    currentAudioElement.pause();
-    currentAudioElement = null;
-  }
-  
+
   // Clean text for TTS
   let cleanText = text.replace(/<[^>]*>/g, "")
     .replace(/\bCUST-\d+\b/g, "")
@@ -1164,66 +1158,8 @@ function speakPhoneCallText(text) {
     return;
   }
 
-  setCallState("SPEAKING");
-
-  // Call the backend speech synthesis endpoint (using highly human-like Azure Neural Voice)
-  const audioUrl = `${API_BASE}/voice/speak?text=${encodeURIComponent(cleanText)}`;
-  const audio = new Audio(audioUrl);
-  currentAudioElement = audio;
-
-  audio.onplay = () => {
-    // Dynamic text typing effect perfectly synchronized with speech boundaries and punctuation pauses!
-    const words = cleanText.split(" ");
-    let currentWordIdx = 0;
-    const phoneAIEl = document.getElementById("phoneAIResponse");
-    
-    if (phoneAIEl) {
-      phoneAIEl.textContent = "";
-    }
-    
-    function typeNextWord() {
-      if (currentAudioElement !== audio || audio.paused) {
-        return;
-      }
-      if (currentWordIdx < words.length) {
-        const word = words[currentWordIdx];
-        currentWordIdx++;
-        if (phoneAIEl) {
-          phoneAIEl.textContent = words.slice(0, currentWordIdx).join(" ");
-          // Auto-scroll response box as words type out
-          phoneAIEl.scrollTop = phoneAIEl.scrollHeight;
-        }
-        
-        // Calculate punctuation-aware delay to keep visual text perfectly in sync with neural speech
-        const delay = getWordDelay(word);
-        setTimeout(typeNextWord, delay);
-      }
-    }
-    
-    typeNextWord();
-  };
-
-  audio.onended = () => {
-    if (currentAudioElement === audio) {
-      currentAudioElement = null;
-    }
-    if (isInCallMode) {
-      startListeningForCall();
-    }
-  };
-
-  audio.onerror = (e) => {
-    console.error("Azure speech synthesis audio error, falling back to native SpeechSynthesis:", e);
-    if (currentAudioElement === audio) {
-      currentAudioElement = null;
-    }
-    speakPhoneCallTextNativeFallback(cleanText);
-  };
-
-  audio.play().catch(err => {
-    console.warn("Autoplay block or audio play failed, falling back to native SpeechSynthesis:", err);
-    speakPhoneCallTextNativeFallback(cleanText);
-  });
+  // Use browser-native SpeechSynthesis directly for instant playback (0ms server latency)
+  speakPhoneCallTextNativeFallback(cleanText);
 }
 
 function speakPhoneCallTextNativeFallback(cleanText) {

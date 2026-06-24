@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test CDN</title>
+  <!-- Load the Azure Communication Calling SDK bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/@azure/communication-calling@1.23.1/dist/sdk.bundle.min.js"></script>
+</head>
+<body>
+  <script>
+    // Search window keys for calling classes
+    const matchedKeys = Object.keys(window).filter(k => 
+      k.toLowerCase().includes('azure') || 
+      k.toLowerCase().includes('call') || 
+      k.toLowerCase().includes('communication')
+    );
+    
+    // Create an element to display the matching keys
+    const resultDiv = document.createElement('div');
+    resultDiv.id = 'result';
+    
+    let info = {
+      keys: matchedKeys,
+      windowCallClient: !!window.CallClient,
+      windowAzure: typeof window.Azure !== 'undefined' ? Object.keys(window.Azure || {}) : null
+    };
+    
+    if (window.Azure && window.Azure.Communication) {
+      info.azureCommunication = Object.keys(window.Azure.Communication);
+      if (window.Azure.Communication.Calling) {
+        info.azureCommunicationCalling = Object.keys(window.Azure.Communication.Calling);
+      }
+    }
+    
+    resultDiv.innerText = JSON.stringify(info);
+    document.body.appendChild(resultDiv);
+  </script>
+</body>
+</html>

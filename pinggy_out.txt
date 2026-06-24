@@ -1,0 +1,373 @@
+Starting Python verbose wrapper without cmd...
+OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+debug1: Connecting to free.pinggy.io [139.162.14.64] port 443.
+debug1: Connection established.
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_rsa type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_rsa-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa_sk type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa_sk-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519 type 3
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519_sk type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519_sk-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_xmss type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_xmss-cert type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_dsa type -1
+debug1: identity file C:\\Users\\SAIHARISHGURRAM/.ssh/id_dsa-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_for_Windows_9.5
+debug1: Remote protocol version 2.0, remote software version Pinggy.IO
+debug1: compat_banner: no match: Pinggy.IO
+debug1: Authenticating to free.pinggy.io:443 as 'pinggy'
+debug1: load_hostkeys: fopen C:\\Users\\SAIHARISHGURRAM/.ssh/known_hosts2: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts2: No such file or directory
+debug1: SSH2_MSG_KEXINIT sent
+debug1: SSH2_MSG_KEXINIT received
+debug1: kex: algorithm: curve25519-sha256
+debug1: kex: host key algorithm: rsa-sha2-512
+debug1: kex: server->client cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: kex: client->server cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: expecting SSH2_MSG_KEX_ECDH_REPLY
+debug1: SSH2_MSG_KEX_ECDH_REPLY received
+debug1: Server host key: ssh-rsa SHA256:nFd5rfJMGuZXvfeRzJ/BtT3TfksAxTWMajcrHRcI7AM
+debug1: load_hostkeys: fopen C:\\Users\\SAIHARISHGURRAM/.ssh/known_hosts2: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts2: No such file or directory
+debug1: Host '[free.pinggy.io]:443' is known and matches the RSA host key.
+debug1: Found key in C:\\Users\\SAIHARISHGURRAM/.ssh/known_hosts:2
+debug1: ssh_packet_send2_wrapped: resetting send seqnr 3
+debug1: rekey out after 134217728 blocks
+debug1: SSH2_MSG_NEWKEYS sent
+debug1: expecting SSH2_MSG_NEWKEYS
+debug1: ssh_packet_read_poll2: resetting read seqnr 3
+debug1: SSH2_MSG_NEWKEYS received
+debug1: rekey in after 134217728 blocks
+debug1: get_agent_identities: ssh_get_authentication_socket: No such file or directory
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_rsa 
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa 
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa_sk 
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519 ED25519 SHA256:MHSmX/7KN1VweYsex2qtviT+IxAaJH/nWQQJEDKCYJ8
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519_sk 
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_xmss 
+debug1: Will attempt key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_dsa 
+debug1: SSH2_MSG_EXT_INFO received
+debug1: kex_input_ext_info: server-sig-algs=<ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,rsa-sha2-512,rsa-sha2-256>
+debug1: SSH2_MSG_SERVICE_ACCEPT received
+debug1: Authentications that can continue: publickey,password
+debug1: Next authentication method: publickey
+debug1: Trying private key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_rsa
+debug1: Trying private key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa
+debug1: Trying private key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ecdsa_sk
+debug1: Offering public key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519 ED25519 SHA256:MHSmX/7KN1VweYsex2qtviT+IxAaJH/nWQQJEDKCYJ8
+debug1: Server accepts key: C:\\Users\\SAIHARISHGURRAM/.ssh/id_ed25519 ED25519 SHA256:MHSmX/7KN1VweYsex2qtviT+IxAaJH/nWQQJEDKCYJ8
+Authenticated to free.pinggy.io ([139.162.14.64]:443) using "publickey".
+debug1: Remote connections from LOCALHOST:80 forwarded to local address 127.0.0.1:8000
+debug1: channel 0: new session [client-session] (inactive timeout: 0)
+debug1: Entering interactive session.
+debug1: pledge: filesystem
+debug1: remote forward success for: listen 80, connect 127.0.0.1:8000
+You are not authenticated.
+Your tunnel will expire in 60 minutes. Upgrade to Pinggy Pro to get unrestricted tunnels. https://dashboard.pinggy.io
+http://hdhbn-20-244-46-127.free.pinggy.net
+http://ujeiz-20-244-46-127.run.pinggy-free.link
+https://hdhbn-20-244-46-127.free.pinggy.net
+https://ujeiz-20-244-46-127.run.pinggy-free.link
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_channel_open: ctype forwarded-tcpip rchan 44 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 20.244.46.127 port 29273
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=7
+debug1: channel 1: new forwarded-tcpip [20.244.46.127] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 1: connected to 127.0.0.1 port 8000
+
+RB: 0, SB: 0, TC: 0, AC: 0               
+RB: 0, SB: 0, TC: 0, AC: 0               
+RB: 0, SB: 0, TC: 0, AC: 4294967295               
+RB: 0, SB: 0, TC: 1, AC: 0               
+RB: 329, SB: 153, TC: 1, AC: 1               debug1: channel 1: free: 20.244.46.127, nchannels 2
+
+RB: 329, SB: 153, TC: 1, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_channel_open: ctype forwarded-tcpip rchan 45 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.250.28.182 port 1182
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=7
+debug1: channel 1: new forwarded-tcpip [52.250.28.182] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 1: connected to 127.0.0.1 port 8000
+
+RB: 329, SB: 153, TC: 1, AC: 0               
+RB: 1687, SB: 153, TC: 2, AC: 1               
+RB: 1687, SB: 153, TC: 2, AC: 1               
+RB: 1687, SB: 153, TC: 2, AC: 0               
+RB: 1687, SB: 153, TC: 3, AC: 1               debug1: channel 1: free: 52.250.28.182, nchannels 2
+
+RB: 1687, SB: 339, TC: 2, AC: 1               
+RB: 1687, SB: 339, TC: 2, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_channel_open: ctype forwarded-tcpip rchan 46 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 20.189.108.187 port 1921
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=7
+debug1: channel 1: new forwarded-tcpip [20.189.108.187] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 1: connected to 127.0.0.1 port 8000
+
+RB: 1687, SB: 339, TC: 2, AC: 0               
+RB: 10959, SB: 339, TC: 3, AC: 1               
+RB: 10959, SB: 339, TC: 3, AC: 1               
+RB: 10959, SB: 486, TC: 3, AC: 1               debug1: client_input_channel_open: ctype forwarded-tcpip rchan 47 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.123.175.46 port 31936
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=8
+debug1: channel 2: new forwarded-tcpip [52.123.175.46] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 2: connected to 127.0.0.1 port 8000
+
+RB: 10959, SB: 486, TC: 3, AC: 1               
+RB: 10959, SB: 486, TC: 4, AC: 2               
+RB: 10959, SB: 486, TC: 4, AC: 2               debug1: client_input_channel_open: ctype forwarded-tcpip rchan 48 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.123.175.46 port 31937
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=9
+debug1: channel 3: new forwarded-tcpip [52.123.175.46] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 3: connected to 127.0.0.1 port 8000
+
+RB: 10959, SB: 486, TC: 4, AC: 2               
+RB: 15832, SB: 626, TC: 5, AC: 3               
+RB: 15832, SB: 626, TC: 5, AC: 3               
+RB: 15832, SB: 766, TC: 5, AC: 3               debug1: channel 1: free: 20.189.108.187, nchannels 4
+
+RB: 15832, SB: 766, TC: 5, AC: 2               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: channel 2: free: 52.123.175.46, nchannels 3
+debug1: channel 3: free: 52.123.175.46, nchannels 2
+
+RB: 15832, SB: 766, TC: 5, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+
+RB: 15832, SB: 766, TC: 5, AC: 4294967295               
+RB: 15832, SB: 766, TC: 6, AC: 0               
+RB: 15832, SB: 766, TC: 6, AC: 4294967295               
+RB: 15832, SB: 766, TC: 7, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+
+RB: 15832, SB: 766, TC: 7, AC: 4294967295               
+RB: 15832, SB: 766, TC: 8, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_channel_open: ctype forwarded-tcpip rchan 49 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 20.189.108.187 port 65153
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=7
+debug1: channel 1: new forwarded-tcpip [20.189.108.187] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 1: connected to 127.0.0.1 port 8000
+
+RB: 15832, SB: 766, TC: 8, AC: 0               
+RB: 15832, SB: 766, TC: 6, AC: 1               
+RB: 25109, SB: 766, TC: 6, AC: 1               
+RB: 25109, SB: 766, TC: 6, AC: 1               
+RB: 25109, SB: 913, TC: 6, AC: 1               debug1: client_input_channel_open: ctype forwarded-tcpip rchan 50 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.123.164.80 port 5188
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=8
+debug1: channel 2: new forwarded-tcpip [52.123.164.80] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 2: connected to 127.0.0.1 port 8000
+
+RB: 25109, SB: 913, TC: 6, AC: 1               
+RB: 27245, SB: 913, TC: 7, AC: 2               debug1: client_input_channel_open: ctype forwarded-tcpip rchan 51 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.123.164.80 port 5184
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=9
+debug1: channel 3: new forwarded-tcpip [52.123.164.80] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 3: connected to 127.0.0.1 port 8000
+
+RB: 27245, SB: 913, TC: 7, AC: 2               
+RB: 27245, SB: 913, TC: 7, AC: 2               
+RB: 27245, SB: 913, TC: 7, AC: 2               
+RB: 29981, SB: 1193, TC: 8, AC: 3               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: channel 1: free: 20.189.108.187, nchannels 4
+
+RB: 29981, SB: 1193, TC: 8, AC: 2               debug1: channel 2: free: 52.123.164.80, nchannels 3
+debug1: channel 3: free: 52.123.164.80, nchannels 2
+
+RB: 29981, SB: 1193, TC: 8, AC: 0               debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+debug1: client_input_global_request: rtype keepalive@openssh.com want_reply 1
+
+RB: 29981, SB: 1193, TC: 8, AC: 4294967295               
+RB: 29981, SB: 1193, TC: 9, AC: 0               
+RB: 29981, SB: 1193, TC: 9, AC: 0               
+RB: 29981, SB: 1193, TC: 9, AC: 4294967295               
+RB: 29981, SB: 1193, TC: 10, AC: 0               
+RB: 29981, SB: 1193, TC: 10, AC: 0               debug1: client_input_channel_open: ctype forwarded-tcpip rchan 52 win 2097152 max 32768
+debug1: client_request_forwarded_tcpip: listen localhost port 80, originator 52.123.164.80 port 5190
+debug1: connect_next: start for host 127.0.0.1 ([127.0.0.1]:8000)
+debug1: connect_next: connect host 127.0.0.1 ([127.0.0.1]:8000) in progress, fd=7
+debug1: channel 1: new forwarded-tcpip [52.123.164.80] (inactive timeout: 0)
+debug1: confirm forwarded-tcpip
+debug1: channel 1: connected to 127.0.0.1 port 8000
+
+RB: 29981, SB: 1193, TC: 10, AC: 0               
+RB: 29981, SB: 1193, TC: 10, AC: 0               
