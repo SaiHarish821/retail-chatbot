@@ -4,7 +4,7 @@ import asyncio
 from dotenv import load_dotenv
 
 # Ensure backend directory is in path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 
 from database import init_db, seed_db, load_db_customer_data
 from agents import AgentRouter

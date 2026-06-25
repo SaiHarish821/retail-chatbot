@@ -16,8 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agents import AgentRouter
-from voice import transcribe_audio
-from acs_bot import ACSBotManager
+from services import transcribe_audio, ACSBotManager
 
 load_dotenv()
 
@@ -222,7 +221,7 @@ async def voice_speak(text: str):
     Synthesize text to audio using Azure Cognitive Services Text-to-Speech (Sonia Neural).
     """
     try:
-        from voice import synthesize_speech
+        from services import synthesize_speech
         from fastapi.responses import Response
         audio_data = await synthesize_speech(text)
         return Response(content=audio_data, media_type="audio/wav")

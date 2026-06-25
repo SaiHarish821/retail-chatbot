@@ -3,7 +3,7 @@ import os
 import json
 import shutil
 
-ORIGINAL_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mock_data", "retail_chatbot.db"))
+ORIGINAL_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "mock_data", "retail_chatbot.db"))
 
 # Detect Vercel or AWS Lambda serverless execution environments
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
@@ -355,7 +355,7 @@ def seed_db(force=False):
         return  # already seeded
         
     # Import seed data dynamically to avoid import-time dependency or circular imports
-    from seed_data import CUSTOMER_SEED, INVENTORY_SEED
+    from .seed_data import CUSTOMER_SEED, INVENTORY_SEED
     
     if not customer_seeded:
         cust = CUSTOMER_SEED["customer"]
@@ -642,7 +642,6 @@ def load_db_inventory_data() -> dict:
         },
         "inventory": inventory
     }
-
 
 def load_db_customer_data() -> dict:
     conn = get_connection()
