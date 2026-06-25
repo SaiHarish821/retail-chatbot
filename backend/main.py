@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from agents import AgentRouter
 from services import transcribe_audio, ACSBotManager

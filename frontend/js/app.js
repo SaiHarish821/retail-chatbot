@@ -71,8 +71,12 @@ function renderSidebar() {
   document.getElementById("customerId").textContent = customer.id;
   document.getElementById("customerInitials").textContent = initials;
   
-  const loyaltyBadgeText = `⭐ ${customer.loyalty_tier} · ${customer.loyalty_points.toLocaleString()} pts`;
-  document.getElementById("loyaltyBadge").textContent = loyaltyBadgeText;
+  const badgeTextEl = document.getElementById("loyaltyBadgeText");
+  if (badgeTextEl) {
+    badgeTextEl.textContent = `${customer.loyalty_tier} · ${customer.loyalty_points.toLocaleString()} pts`;
+  } else {
+    document.getElementById("loyaltyBadge").textContent = `⭐ ${customer.loyalty_tier} · ${customer.loyalty_points.toLocaleString()} pts`;
+  }
 
   if (customer.default_address) {
     const addrText = `${customer.default_address.line1}, ${customer.default_address.city}`;
@@ -209,6 +213,12 @@ function sendFromInput() {
 
 async function sendMessage(text) {
   if (!text || isThinking) return;
+
+  // Auto-switch to chat tab if the user triggers a query from another tab
+  if (typeof switchChatTab === "function") {
+    switchChatTab("chat");
+  }
+
   hideError();
 
   // Remove all previous active suggestion containers
@@ -945,40 +955,69 @@ function speakText(text) {
 
 function setCallState(state) {
   callState = state;
-  const statusEl = document.getElementById("phoneStatus");
-  const pulse1 = document.getElementById("phonePulse1");
-  const pulse2 = document.getElementById("phonePulse2");
-  if (!statusEl || !pulse1 || !pulse2) return;
+  const statusEl  = document.getElementById("phoneStatus");
+  const pulse1    = document.getElementById("phonePulse1");
+  const pulse2    = document.getElementById("phonePulse2");
+  const card      = document.querySelector(".phone-card");
+  const badgeText = document.getElementById("stateBadgeText");
+  const badgeIcon = document.getElementById("stateBadgeIcon");
 
+  if (!statusEl) return;
+
+  // Reset element classes
   statusEl.className = "phone-status";
-  pulse1.className = "phone-avatar-pulse";
-  pulse2.className = "phone-avatar-pulse-2";
+  if (pulse1) pulse1.className = "phone-avatar-pulse";
+  if (pulse2) pulse2.className = "phone-avatar-pulse-2";
+
+  // Clear all call-state classes from card, add the new one
+  if (card) {
+    card.classList.remove("call-state-speaking", "call-state-listening", "call-state-processing");
+    if (state === "GREETING" || state === "SPEAKING") card.classList.add("call-state-speaking");
+    else if (state === "LISTENING") card.classList.add("call-state-listening");
+    else if (state === "PROCESSING") card.classList.add("call-state-processing");
+  }
+
+  const micPaths   = '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>';
+  const wavePaths  = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>';
+  const mutedPaths = '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><line x1="12" y1="19" x2="12" y2="22"/>';
 
   if (state === "GREETING") {
     statusEl.textContent = "AI Greeting...";
     statusEl.classList.add("speaking");
-    pulse1.classList.add("pulse-speaking");
-    pulse2.classList.add("pulse-speaking");
+    if (pulse1) pulse1.classList.add("pulse-speaking");
+    if (pulse2) pulse2.classList.add("pulse-speaking");
+    if (badgeText) badgeText.textContent = "Speaking";
+    if (badgeIcon) badgeIcon.innerHTML = wavePaths;
   } else if (state === "SPEAKING") {
     statusEl.textContent = "AI Speaking...";
     statusEl.classList.add("speaking");
-    pulse1.classList.add("pulse-speaking");
-    pulse2.classList.add("pulse-speaking");
+    if (pulse1) pulse1.classList.add("pulse-speaking");
+    if (pulse2) pulse2.classList.add("pulse-speaking");
+    if (badgeText) badgeText.textContent = "Speaking";
+    if (badgeIcon) badgeIcon.innerHTML = wavePaths;
   } else if (state === "LISTENING") {
     statusEl.textContent = "Listening...";
     statusEl.classList.add("listening");
-    pulse1.classList.add("pulse-listening");
-    pulse2.classList.add("pulse-listening");
+    if (pulse1) pulse1.classList.add("pulse-listening");
+    if (pulse2) pulse2.classList.add("pulse-listening");
+    if (badgeText) badgeText.textContent = "Listening";
+    if (badgeIcon) badgeIcon.innerHTML = micPaths;
   } else if (state === "PROCESSING") {
     statusEl.textContent = "Processing...";
     statusEl.classList.add("processing");
-    pulse1.classList.add("pulse-processing");
-    pulse2.classList.add("pulse-processing");
+    if (pulse1) pulse1.classList.add("pulse-processing");
+    if (pulse2) pulse2.classList.add("pulse-processing");
+    if (badgeText) badgeText.textContent = "Processing";
+    if (badgeIcon) badgeIcon.innerHTML = micPaths;
   } else if (state === "MUTED") {
     statusEl.textContent = "Muted";
     statusEl.classList.add("muted");
+    if (badgeText) badgeText.textContent = "Muted";
+    if (badgeIcon) badgeIcon.innerHTML = mutedPaths;
   } else {
     statusEl.textContent = "Connecting...";
+    if (badgeText) badgeText.textContent = "Connecting";
+    if (badgeIcon) badgeIcon.innerHTML = micPaths;
   }
 }
 
@@ -1000,10 +1039,13 @@ async function startPhoneCall() {
   const muteBtn = document.getElementById("phoneMuteBtn");
   if (muteBtn) {
     muteBtn.classList.remove("muted");
-    muteBtn.textContent = "🎙️";
   }
 
-  // Show Overlay
+  // Show Overlay — hide chat/account panels first so overlay fills the space
+  const chatPanelEl = document.getElementById("chatPanel");
+  const accountPanelEl = document.getElementById("accountPanel");
+  if (chatPanelEl) chatPanelEl.style.display = 'none';
+  if (accountPanelEl) accountPanelEl.style.display = 'none';
   document.getElementById("phoneCallOverlay").classList.add("active");
   document.getElementById("phoneTranscript").textContent = "Waiting for speech...";
   const phoneAIEl = document.getElementById("phoneAIResponse");
@@ -1050,8 +1092,10 @@ function endPhoneCall() {
     phoneSilenceTimer = null;
   }
 
-  // Hide Overlay
+  // Hide Overlay — restore chat panel
   document.getElementById("phoneCallOverlay").classList.remove("active");
+  const chatPanelEl = document.getElementById("chatPanel");
+  if (chatPanelEl) chatPanelEl.style.display = 'flex';
   const phoneAIEl = document.getElementById("phoneAIResponse");
   if (phoneAIEl) phoneAIEl.textContent = "AI response will appear here...";
   const phoneTransEl = document.getElementById("phoneTranscript");
@@ -1068,7 +1112,6 @@ function togglePhoneMute() {
   if (isPhoneMuted) {
     if (muteBtn) {
       muteBtn.classList.add("muted");
-      muteBtn.textContent = "🔇";
     }
     showToast("🎙️ Microphone Muted");
     setCallState("MUTED");
@@ -1082,7 +1125,6 @@ function togglePhoneMute() {
   } else {
     if (muteBtn) {
       muteBtn.classList.remove("muted");
-      muteBtn.textContent = "🎙️";
     }
     showToast("🎙️ Microphone Active");
     
