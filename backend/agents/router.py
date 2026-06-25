@@ -1360,21 +1360,52 @@ class AgentRouter:
         # VOICE FAST PATH — Direct OpenAI call, no Foundry agents
         # ═════════════════════════════════════════════════════════════════════
         if is_voice:
-            print(f"[AgentRouter][VOICE] Ultra-fast path for: {message[:80]}")
+            print(f"[AgentRouter][VOICE] Voice path for: {message[:80]}")
 
-            # Route to correct domain for logging
+            # Route to correct domain
             agent_type = self._classify_fallback(message)
-            print(f"[AgentRouter][VOICE] Domain: {agent_type}")
+            print(f"[AgentRouter][VOICE] Classified Domain: {agent_type}")
 
-            reply = await self._call_voice_openai(message, customer_data, history)
+            agent_id = self._agent_ids.get(agent_type)
+            reply = ""
+            sources = []
+
+            if agent_id and self._agents_client:
+                try:
+                    # Provide voice-specific instructions for concise, natural speech
+                    extra_instructions = (
+                        "You are speaking to the user over a real-time voice interface. "
+                        "Keep your response extremely concise, natural, and friendly. "
+                        "Do not use markdown, lists, or headers. Try to keep it under 30 words."
+                    )
+                    reply = await self._call_foundry_agent(
+                        agent_id=agent_id,
+                        context=self.context,
+                        task_query=message,
+                        history=history,
+                        extra_instructions=extra_instructions
+                    )
+                    if reply and not self._is_raw_routing_json(reply):
+                        sources = [f"{agent_type}_agent"]
+                        print(f"[AgentRouter][VOICE] Answered via Foundry agent: {agent_type}")
+                    else:
+                        reply = ""
+                except Exception as e:
+                    print(f"[AgentRouter][VOICE] Foundry agent call failed: {e}. Falling back to direct OpenAI.")
+
+            if not reply:
+                # Direct completions fallback
+                reply = await self._call_voice_openai(message, customer_data, history)
+                sources = ["voice_direct_fallback"]
 
             if not reply:
                 reply = "I'm sorry, could you say that again?"
+                sources = ["voice_failed"]
 
             return {
                 "reply":       reply,
                 "intent":      agent_type,
-                "sources":     ["voice_direct"],
+                "sources":     sources,
                 "suggestions": self._static_suggestions(agent_type),
             }
 
