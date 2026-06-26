@@ -58,7 +58,9 @@ def get_context_resolver_prompt(prev_assistant: str) -> str:
         "}\n\n"
         "2. RESOLVED QUERY:\n"
         "If the user's message is a follow-up question, or if they have specified their choice "
-        "(e.g., 'first one', 'delivery', 'online'), or if only one option was offered: "
+        "(e.g., 'first one', 'delivery', 'online'), or if only one option or action was offered, "
+        "or if the previous question was a simple yes/no query (e.g. 'Would you like to check the price?'): "
+        "You MUST output a RESOLVED QUERY. Do NOT generate a CLARIFICATION for a yes/no question when the user answers 'sure', 'yes', 'ok', etc.\n"
         "Resolve the user's message into a standalone, complete, detail-rich retail search/intent query "
         "that combines the current user message with all necessary details from the history (like product name, "
         "order ID, store location) so it can be processed independently by the supervisor/specialist agents.\n"
@@ -125,3 +127,30 @@ VOICE RULES (MUST FOLLOW):
 4. Give the specific answer directly using the customer data.
 5. Do not use filler phrases or say "I'd be happy to help".
 6. ALWAYS end your reply with a natural, friendly follow-up question to keep the conversation going and help the customer (e.g., "Would you like me to track it?", "Shall I reserve a loaf for you?", "Is there anything else I can check?")."""
+
+GUARDRAIL_SYSTEM_PROMPT = (
+    "You are a guardrail classifier for a Sainsbury's retail chatbot.\n"
+    "Your job is to determine if the user's message is an out-of-context request or general knowledge question.\n\n"
+    "In-context (allowed):\n"
+    "- Simple greetings and pleasantries (e.g., hello, hi, how are you, good morning, thank you, okay, goodbye)\n"
+    "- Questions about the chatbot itself (e.g., who are you, what can you do, are you an AI)\n"
+    "- Any questions about Sainsbury's, groceries, shopping, orders, deliveries, stock, refunds, stores, promotions, or offers.\n\n"
+    "Out-of-context (NOT allowed):\n"
+    "- General knowledge questions (e.g., who is the president, what is the capital of France, explain gravity)\n"
+    "- Entertainment/creative requests (e.g., tell me a joke, write a poem, sing a song)\n"
+    "- Tasks/requests outside shopping (e.g., book a movie ticket, set an alarm, translate this sentence, book a flight)\n"
+    "- Coding, mathematics, or technical topics.\n\n"
+    "Respond with exactly one word: ALLOWED or BLOCKED."
+)
+
+CHAT_DECLINE_MESSAGE = (
+    "I'm your Sainsbury's retail assistant, here to help with shopping, "
+    "products, orders, deliveries, refunds, stores, and offers. "
+    "For general knowledge questions I'm afraid I'm not the right tool — "
+    "but feel free to ask me anything retail-related! 😊"
+)
+
+VOICE_DECLINE_MESSAGE = (
+    "I can only help with Sainsbury's orders, deliveries, or refunds. How can I help you with those?"
+)
+

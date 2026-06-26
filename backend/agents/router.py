@@ -22,6 +22,9 @@ from .prompts import (
     SUPERVISOR_MERGE_PROMPT,
     SUGGESTIONS_SYSTEM_PROMPT,
     get_voice_system_prompt,
+    GUARDRAIL_SYSTEM_PROMPT,
+    CHAT_DECLINE_MESSAGE,
+    VOICE_DECLINE_MESSAGE,
 )
 
 # Import validations
@@ -554,6 +557,31 @@ class AgentRouter:
         domain = self._classify_domain(message, history, is_voice)
         return "new_retail" if domain == "retail" else "new_general"
 
+    def _is_out_of_context(self, message: str) -> bool:
+        """
+        Uses direct AzureOpenAI to evaluate if the message is out of context.
+        """
+        if not self._openai_client:
+            return False  # safe default: do not block if client is not configured
+        
+        deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
+        try:
+            res = self._openai_client.chat.completions.create(
+                model=deployment,
+                messages=[
+                    {"role": "system", "content": GUARDRAIL_SYSTEM_PROMPT},
+                    {"role": "user", "content": message}
+                ],
+                max_tokens=5,
+                temperature=0.0,
+            )
+            decision = res.choices[0].message.content.strip().upper()
+            print(f"[AgentRouter][GUARDRAIL] Query: '{message}' | Decision: {decision}")
+            return decision == "BLOCKED"
+        except Exception as e:
+            print(f"[AgentRouter][GUARDRAIL] Guardrail check failed: {e}")
+            return False
+
     async def _resolve_context(self, message: str, history: list[dict]) -> dict[str, Any]:
         """
         Resolves a follow-up or clarification message using the conversation history.
@@ -970,6 +998,10 @@ class AgentRouter:
         """Keyword-based routing fallback (no LLM call). Covers broad spoken query patterns."""
         text = message.lower()
 
+        # General / Greetings / Small Talk
+        if any(kw in text for kw in self._GENERAL_KEYWORDS):
+            return "general"
+
         # Refund / Returns
         if any(w in text for w in [
             "refund", "return", "money back", "damaged", "broken",
@@ -1356,6 +1388,24 @@ class AgentRouter:
         customer_data = self._load_customer_data()
         self.context  = build_context_block(customer_data)
 
+        # ── Strict Guardrail: Check for out-of-context requests ───────────────
+        if self._is_out_of_context(message):
+            print(f"[AgentRouter] Guardrail triggered for out-of-context message: {message[:80]}")
+            if is_voice:
+                return {
+                    "reply":       VOICE_DECLINE_MESSAGE,
+                    "intent":      "general",
+                    "sources":     ["guardrail_decline"],
+                    "suggestions": self._static_suggestions("general"),
+                }
+            else:
+                return {
+                    "reply":       CHAT_DECLINE_MESSAGE,
+                    "intent":      "general",
+                    "sources":     ["guardrail_decline"],
+                    "suggestions": await self._generate_suggestions(message, CHAT_DECLINE_MESSAGE, "general", history),
+                }
+
         # ═════════════════════════════════════════════════════════════════════
         # VOICE FAST PATH — Direct OpenAI call, no Foundry agents
         # ═════════════════════════════════════════════════════════════════════
@@ -1366,37 +1416,8 @@ class AgentRouter:
             agent_type = self._classify_fallback(message)
             print(f"[AgentRouter][VOICE] Classified Domain: {agent_type}")
 
-            agent_id = self._agent_ids.get(agent_type)
-            reply = ""
-            sources = []
-
-            if agent_id and self._agents_client:
-                try:
-                    # Provide voice-specific instructions for concise, natural speech
-                    extra_instructions = (
-                        "You are speaking to the user over a real-time voice interface. "
-                        "Keep your response extremely concise, natural, and friendly. "
-                        "Do not use markdown, lists, or headers. Try to keep it under 30 words."
-                    )
-                    reply = await self._call_foundry_agent(
-                        agent_id=agent_id,
-                        context=self.context,
-                        task_query=message,
-                        history=history,
-                        extra_instructions=extra_instructions
-                    )
-                    if reply and not self._is_raw_routing_json(reply):
-                        sources = [f"{agent_type}_agent"]
-                        print(f"[AgentRouter][VOICE] Answered via Foundry agent: {agent_type}")
-                    else:
-                        reply = ""
-                except Exception as e:
-                    print(f"[AgentRouter][VOICE] Foundry agent call failed: {e}. Falling back to direct OpenAI.")
-
-            if not reply:
-                # Direct completions fallback
-                reply = await self._call_voice_openai(message, customer_data, history)
-                sources = ["voice_direct_fallback"]
+            reply = await self._call_voice_openai(message, customer_data, history)
+            sources = ["voice_direct"]
 
             if not reply:
                 reply = "I'm sorry, could you say that again?"

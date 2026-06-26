@@ -23,7 +23,13 @@ def validate_and_sanitize_response(message: str, reply: str) -> str:
         # Convert markdown bullets to unicode
         if stripped.startswith("* ") or stripped.startswith("- "):
             line = "• " + stripped[2:]
-        elif stripped.startswith("*") or stripped.startswith("-"):
+        elif (
+            (stripped.startswith("*") or stripped.startswith("-"))
+            and not stripped.startswith("**")
+            and not stripped.startswith("--")
+            and not (stripped.startswith("-") and len(stripped) > 1 and stripped[1].isdigit())
+            and not (stripped.startswith("*") and stripped.count("*") > 1)
+        ):
             line = "• " + stripped[1:]
 
         sanitized_lines.append(line)

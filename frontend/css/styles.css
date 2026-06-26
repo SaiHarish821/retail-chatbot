@@ -330,6 +330,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
 }
 
 .messages-container::-webkit-scrollbar { width: 4px; }

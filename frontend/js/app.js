@@ -338,7 +338,7 @@ function appendAIMessage(text, intent, suggestions = []) {
   }
 
   messagesEl.appendChild(div);
-  scrollToBottom();
+  scrollToNewMessage(div);
 }
 
 function showTyping() {
@@ -465,6 +465,30 @@ function scrollToBottom() {
   requestAnimationFrame(() => {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   });
+}
+
+function scrollToNewMessage(messageEl) {
+  setTimeout(() => {
+    if (!messagesEl || !messageEl) return;
+
+    // Since messagesEl (.messages-container) is position: relative,
+    // messageEl.offsetTop is directly the offset relative to the scroll container.
+    const messageTop = messageEl.offsetTop;
+    const messageHeight = messageEl.scrollHeight;
+    const containerHeight = messagesEl.clientHeight;
+
+    if (messageHeight > containerHeight - 40) {
+      messagesEl.scrollTo({
+        top: messageTop - 10,
+        behavior: "smooth"
+      });
+    } else {
+      messagesEl.scrollTo({
+        top: messagesEl.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, 100);
 }
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
@@ -649,16 +673,9 @@ function stopRecording(shouldSubmit = false) {
     voiceBtn.title = "Voice input";
     
     if (shouldSubmit && text) {
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      if (wordCount < 2) {
-        showToast("Accidental input ignored (less than 2 words)");
-        chatInput.value = "";
-        sendBtn.disabled = true;
-      } else {
-        chatInput.placeholder = "Processing...";
-        showToast("⚙️ Processing speech...");
-        sendMessage(text);
-      }
+      chatInput.placeholder = "Processing...";
+      showToast("⚙️ Processing speech...");
+      sendMessage(text);
     }
     return;
   }
@@ -729,20 +746,13 @@ async function handleRecordingStopFallback(shouldSubmit) {
     chatInput.placeholder = "Ask about orders, refunds, deliveries, stores…";
     
     if (text) {
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      if (wordCount < 2) {
-        showToast("Accidental input ignored (less than 2 words)");
-        chatInput.value = "";
-        sendBtn.disabled = true;
+      chatInput.value = text;
+      autoResizeTextarea();
+      sendBtn.disabled = false;
+      if (shouldSubmit) {
+        sendMessage(text);
       } else {
-        chatInput.value = text;
-        autoResizeTextarea();
-        sendBtn.disabled = false;
-        if (shouldSubmit) {
-          sendMessage(text);
-        } else {
-          showToast("✓ Transcribed – press Send");
-        }
+        showToast("✓ Transcribed – press Send");
       }
     } else {
       showToast("No speech detected. Try again.");
@@ -1451,14 +1461,6 @@ async function submitPhoneCallTurnNative() {
     return;
   }
 
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
-  if (wordCount < 2) {
-    // Noise or short greeting, ignore and do not submit. Clear text.
-    phoneCurrentTurnTranscript = "";
-    resetPhoneSilenceTimer();
-    return;
-  }
-
   const transcriptPreview = document.getElementById("phoneTranscript");
 
   if (phoneRecognition) {
@@ -1670,40 +1672,34 @@ async function submitPhoneCallTurnFallback() {
     const text = (transcript || "").trim();
 
     if (text) {
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      if (wordCount < 2) {
-        // Ignore noise, continue listening
-        startListeningForCall();
+      if (transcriptPreview) {
+        transcriptPreview.textContent = text;
+      }
+      appendUserMessage(text);
+      conversationHistory.push({ role: "user", content: text });
+
+      const response = await fetch(`${API_BASE}/chat/voice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          conversation_history: conversationHistory.slice(-20),
+        }),
+      });
+
+      if (!response.ok) throw new Error("Chat call failed");
+      const data = await response.json();
+      appendAIMessage(data.reply, data.intent, data.suggestions);
+      conversationHistory.push({ role: "assistant", content: data.reply });
+      fetchCustomerData();
+
+      const phoneAIEl = document.getElementById("phoneAIResponse");
+      if (phoneAIEl) phoneAIEl.textContent = data.reply;
+
+      if (isPhoneSpeakerActive) {
+        speakPhoneCallText(data.reply);
       } else {
-        if (transcriptPreview) {
-          transcriptPreview.textContent = text;
-        }
-        appendUserMessage(text);
-        conversationHistory.push({ role: "user", content: text });
-
-        const response = await fetch(`${API_BASE}/chat/voice`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: text,
-            conversation_history: conversationHistory.slice(-20),
-          }),
-        });
-
-        if (!response.ok) throw new Error("Chat call failed");
-        const data = await response.json();
-        appendAIMessage(data.reply, data.intent, data.suggestions);
-        conversationHistory.push({ role: "assistant", content: data.reply });
-        fetchCustomerData();
-
-        const phoneAIEl = document.getElementById("phoneAIResponse");
-        if (phoneAIEl) phoneAIEl.textContent = data.reply;
-
-        if (isPhoneSpeakerActive) {
-          speakPhoneCallText(data.reply);
-        } else {
-          startListeningForCall();
-        }
+        startListeningForCall();
       }
     } else {
       startListeningForCall();
