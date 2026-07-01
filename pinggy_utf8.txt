@@ -1,7 +1,0 @@
-﻿cmd.exe : Pseudo-terminal will not be allocated because stdin is not a terminal.
-At line:1 char:1
-+ cmd.exe /c "ssh.exe -o StrictHostKeyChecking=no -p 443 -o ServerAlive ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (Pseudo-terminal...not a terminal.:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 

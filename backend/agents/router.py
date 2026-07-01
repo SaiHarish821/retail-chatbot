@@ -124,9 +124,6 @@ class AgentRouter:
     }
 
     # Bind imported validation and sanitization functions as instance delegation helper methods
-    def _validate_and_sanitize_response(self, message: str, reply: str) -> str:
-        return validate_and_sanitize_response(message, reply)
-
     async def _run_validation_layer(self, query: str, reply: str) -> str:
         return await run_validation_layer(query, reply)
 
