@@ -931,6 +931,18 @@
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(240, 101, 32, 0.08) !important;
   }
+  /* Fix: dynamic follow-up chips must be visible — the chip-fade-in animation
+     animates opacity 0→1, but #chatPanel .chip (higher specificity) can block
+     the animated opacity from being applied. Force final state here. */
+  @keyframes chip-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #chatPanel .dynamic-suggestion-chip {
+    opacity: 1 !important;
+    animation: chip-fade-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+    animation-delay: calc(var(--chip-idx, 0) * 0.06s) !important;
+  }
 
   /* Messages Area */
   #chatPanel .messages-container {
