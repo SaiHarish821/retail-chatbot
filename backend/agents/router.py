@@ -9,23 +9,14 @@ import asyncio
 import time
 from typing import Any, Optional
 
-from openai import AzureOpenAI
-from azure.ai.agents import AgentsClient
 from azure.identity import AzureCliCredential
 
-# Import prompts
-from .prompts import (
-    CLASSIFY_DOMAIN_SYSTEM_PROMPT,
-    CLASSIFY_INTENT_SYSTEM_PROMPT,
-    get_context_resolver_prompt,
-    SUPERVISOR_ROUTING_PROMPT,
-    SUPERVISOR_MERGE_PROMPT,
-    SUGGESTIONS_SYSTEM_PROMPT,
-    get_voice_system_prompt,
-    GUARDRAIL_SYSTEM_PROMPT,
-    CHAT_DECLINE_MESSAGE,
-    VOICE_DECLINE_MESSAGE,
-)
+import logging
+logger = logging.getLogger(__name__)
+
+# Constants used for out-of-scope declines
+CHAT_DECLINE_MESSAGE  = "I'm sorry, I can only help with orders, deliveries, refunds, and store queries."
+VOICE_DECLINE_MESSAGE = "Sorry, I can only help with shopping questions. Is there anything about your order or delivery I can help with?"
 
 # Import validations
 from .validation import (
@@ -159,9 +150,9 @@ class AgentRouter:
     def __init__(self, customer_data: dict):
         self.customer_data = customer_data
         self.context = build_context_block(customer_data)
-        self._openai_client: Optional[AzureOpenAI] = None
+        self._openai_client = None          # from AIProjectClient.get_openai_client()
+        self._project_client = None         # AIProjectClient instance
         self._async_openai_client = None
-        self._agents_client: Optional[AgentsClient] = None
         # Maps logical role → Foundry asst_* agent ID (resolved at startup)
         self._agent_ids: dict[str, Optional[str]] = {
             "supervisor": None,
@@ -294,16 +285,17 @@ class AgentRouter:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _init_clients(self) -> None:
-        api_key          = os.getenv("AZURE_AI_FOUNDRY_API_KEY",          "").strip()
-        openai_endpoint  = os.getenv("AZURE_OPENAI_ENDPOINT",             "").strip()
         project_endpoint = os.getenv("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "").strip()
         tenant_id        = os.getenv("AZURE_TENANT_ID", "").strip() or None
+        api_key          = os.getenv("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+        openai_endpoint  = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
 
         is_serverless = os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
 
-        # ── Azure AI Agents client (primary) ─────────────────────────────────
+        # ── Primary: AIProjectClient (new Azure AI Foundry SDK) ──────────────
         if project_endpoint:
             try:
+                from azure.ai.projects import AIProjectClient
                 if is_serverless:
                     from azure.identity import DefaultAzureCredential
                     credential = DefaultAzureCredential()
@@ -311,19 +303,23 @@ class AgentRouter:
                 else:
                     credential = AzureCliCredential(tenant_id=tenant_id)
                     cred_name = "AzureCliCredential"
-                self._agents_client = AgentsClient(
+
+                self._project_client = AIProjectClient(
                     endpoint=project_endpoint,
                     credential=credential,
                 )
-                print(f"[AgentRouter] AgentsClient initialised via {cred_name}.")
+                # Get the OpenAI-compatible client from the project
+                self._openai_client = self._project_client.get_openai_client()
+                print(f"[AgentRouter] AIProjectClient initialised via {cred_name}.")
+                print(f"[AgentRouter] OpenAI base URL: {self._openai_client.base_url}")
             except Exception as e:
-                print(f"[AgentRouter] AgentsClient init failed: {e}")
+                print(f"[AgentRouter] AIProjectClient init failed: {e}")
 
-        # ── AzureOpenAI client ────────────────────────────────────────────────
-        # Prioritise direct AzureOpenAI key-based client for lowest latency if API key is provided
-        if api_key and openai_endpoint:
+        # ── Fallback: Direct AzureOpenAI (for non-Foundry calls if needed) ───
+        if not self._openai_client and api_key and openai_endpoint:
             try:
                 from urllib.parse import urlparse
+                from openai import AzureOpenAI
                 parsed = urlparse(openai_endpoint)
                 base = f"{parsed.scheme}://{parsed.netloc}"
                 self._openai_client = AzureOpenAI(
@@ -331,61 +327,64 @@ class AgentRouter:
                     azure_endpoint=base,
                     api_version="2024-10-21",
                 )
-                from openai import AsyncAzureOpenAI
-                self._async_openai_client = AsyncAzureOpenAI(
-                    api_key=api_key,
-                    azure_endpoint=base,
-                    api_version="2024-10-21",
-                )
-                print(f"[AgentRouter] OpenAI clients initialised directly via API key on base: {base}")
+                print(f"[AgentRouter] Fallback AzureOpenAI client initialised on base: {base}")
             except Exception as e:
-                print(f"[AgentRouter] Direct AzureOpenAI init failed: {e}")
-
-        # Fallback to AIProjectClient (uses AzureCliCredential/DefaultAzureCredential)
-        if not self._openai_client and project_endpoint and not is_serverless:
-            try:
-                from azure.ai.projects import AIProjectClient
-                credential = AzureCliCredential(tenant_id=tenant_id)
-                project_client = AIProjectClient(
-                    endpoint=project_endpoint, credential=credential
-                )
-                self._openai_client = project_client.get_openai_client()
-                print("[AgentRouter] OpenAI client initialised via AIProjectClient.")
-            except Exception as e:
-                print(f"[AgentRouter] AIProjectClient OpenAI init failed: {e}")
+                print(f"[AgentRouter] AzureOpenAI fallback init failed: {e}")
 
     def _resolve_agent_ids(self) -> None:
-        """Map Foundry agent names (from .env) to their runtime asst_* IDs."""
-        if not self._agents_client:
-            print("[AgentRouter] No AgentsClient – agent ID resolution skipped.")
-            return
-
+        """
+        In the new Azure AI Foundry SDK, agents are invoked by NAME using
+        agent_reference. We verify the expected agents exist in the project
+        and build a role -> agent_name map.
+        """
+        # Build role -> agent_name map from env vars
         name_map = {
-            "supervisor": os.getenv("AZURE_AGENT_SUPERVISOR_NAME", "Supervisor-Agent"),
-            "order":      os.getenv("AZURE_AGENT_ORDER_NAME",      "Order-Agent"),
-            "delivery":   os.getenv("AZURE_AGENT_DELIVERY_NAME",   "Delivery-Agent"),
-            "refund":     os.getenv("AZURE_AGENT_REFUND_NAME",     "Refund-Agent"),
-            "store":      os.getenv("AZURE_AGENT_STORE_NAME",      "Store-Agent"),
-            "general":    os.getenv("AZURE_AGENT_GENERAL_NAME",    "General-Assistant-Agent"),
+            "supervisor":         os.getenv("AZURE_AGENT_SUPERVISOR_NAME",  "Supervisor-Agent"),
+            "order":              os.getenv("AZURE_AGENT_ORDER_NAME",       "Order-Agent"),
+            "delivery":           os.getenv("AZURE_AGENT_DELIVERY_NAME",    "Delivery-Agent"),
+            "refund":             os.getenv("AZURE_AGENT_REFUND_NAME",      "Refund-Agent"),
+            "store":              os.getenv("AZURE_AGENT_STORE_NAME",       "Store-Agent"),
+            "general":            os.getenv("AZURE_AGENT_GENERAL_NAME",     "General-Assistant-Agent"),
+            "intent_classifier":  os.getenv("AZURE_AGENT_INTENT_NAME",     "Intent-Classifier-Agent"),
+            "context_resolver":   os.getenv("AZURE_AGENT_CONTEXT_NAME",    "Context-Resolver-Agent"),
+            "suggestions":        os.getenv("AZURE_AGENT_SUGGESTIONS_NAME","Suggestions-Agent"),
+            "voice_assistant":    os.getenv("AZURE_AGENT_VOICE_NAME",      "Voice-Assistant-Agent"),
         }
 
-        try:
-            agents = self._agents_client.list_agents()
-            available = {a.name: a.id for a in agents}
-            print(f"[AgentRouter] Foundry agents available: {list(available.keys())}")
+        # In new Foundry SDK, agent_ids stores the agent NAME (used in agent_reference)
+        for role, agent_name in name_map.items():
+            self._agent_ids[role] = agent_name
 
-            for role, agent_name in name_map.items():
-                if agent_name in available:
-                    self._agent_ids[role] = available[agent_name]
-                    print(f"[AgentRouter]   {role}: '{agent_name}' -> {available[agent_name]}")
-                else:
-                    print(f"[AgentRouter]   {role}: '{agent_name}' NOT FOUND in Foundry.")
-        except Exception as e:
-            print(f"[AgentRouter] Error resolving agent IDs: {e}")
+        # Verify agents exist via AIProjectClient if available
+        if self._project_client:
+            try:
+                logger.info("[AgentRouter] Verifying agents in AI Foundry project...")
+                agents = list(self._project_client.agents.list())
+                available_names = {a.name for a in agents}
+                logger.info("[AgentRouter] Found %d agents: %s", len(available_names), sorted(available_names))
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Database Helpers
-    # ─────────────────────────────────────────────────────────────────────────
+                required_roles = ["supervisor", "order", "delivery", "refund", "store", "general"]
+                for role in required_roles:
+                    agent_name = name_map[role]
+                    if agent_name in available_names:
+                        logger.info("[AgentRouter]   %-18s '%s' -> VERIFIED", role + ":", agent_name)
+                    else:
+                        logger.warning(
+                            "[AgentRouter]   %-18s '%s' -> NOT FOUND in project (agents may still be provisioning)",
+                            role + ":", agent_name
+                        )
+
+                # Optional roles
+                for role in ["intent_classifier", "context_resolver", "suggestions", "voice_assistant"]:
+                    agent_name = name_map[role]
+                    if agent_name in available_names:
+                        logger.info("[AgentRouter]   %-18s '%s' -> VERIFIED (optional)", role + ":", agent_name)
+                    else:
+                        logger.warning("[AgentRouter]   Optional role '%s' agent '%s' not found.", role, agent_name)
+
+                logger.info("[AgentRouter] Agent resolution complete.")
+            except Exception as e:
+                logger.warning("[AgentRouter] Agent verification failed: %s. Will proceed with name-based invocation.", e)
 
     def _load_customer_data(self) -> dict:
         from database import load_db_customer_data
@@ -478,11 +477,16 @@ class AgentRouter:
                     messages=[
                         {
                             "role": "system",
-                            "content": CLASSIFY_DOMAIN_SYSTEM_PROMPT,
+                            "content": (
+                            "You are a domain classifier for a Sainsbury's retail assistant.\n"
+                            "Respond with ONE word only: 'retail' or 'general'.\n"
+                            "retail = orders, delivery, refunds, products, store, grocery.\n"
+                            "general = anything not related to retail shopping."
+                        ),
                         },
                         {"role": "user", "content": message},
                     ],
-                    max_tokens=5,
+                    max_completion_tokens=5,
                     temperature=0.0,
                 )
                 label = res.choices[0].message.content.strip().lower()
@@ -532,14 +536,21 @@ class AgentRouter:
                     messages=[
                         {
                             "role": "system",
-                            "content": CLASSIFY_INTENT_SYSTEM_PROMPT,
+                            "content": (
+                            "Classify the user's intent in a retail chatbot conversation.\n"
+                            "Respond with ONE label only:\n"
+                            "  follow_up - references previous exchange (it, that, same, etc.)\n"
+                            "  clarification_confirmation - yes/no/sure/ok confirming a suggestion\n"
+                            "  new_retail - new retail question (order, product, delivery, etc.)\n"
+                            "  new_general - unrelated to retail"
+                        ),
                         },
                         {
                             "role": "user",
                             "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nUSER MESSAGE: {message}"
                         }
                     ],
-                    max_tokens=10,
+                    max_completion_tokens=10,
                     temperature=0.0,
                 )
                 label = res.choices[0].message.content.strip().lower()
@@ -566,10 +577,15 @@ class AgentRouter:
             res = self._openai_client.chat.completions.create(
                 model=deployment,
                 messages=[
-                    {"role": "system", "content": GUARDRAIL_SYSTEM_PROMPT},
+                    {"role": "system", "content": (
+                        "You are a guardrail classifier for a Sainsbury's retail chatbot.\n"
+                        "Respond with exactly one word: ALLOWED or BLOCKED.\n"
+                        "ALLOWED: orders, delivery, refunds, store info, products, groceries, shopping.\n"
+                        "BLOCKED: anything unrelated to retail shopping (politics, coding, jokes, etc)."
+                    )},
                     {"role": "user", "content": message}
                 ],
-                max_tokens=5,
+                max_completion_tokens=5,
                 temperature=0.0,
             )
             decision = res.choices[0].message.content.strip().upper()
@@ -594,7 +610,40 @@ class AgentRouter:
                     f"{t['role'].upper()}: {t['content']}"
                     for t in history[-5:]
                 )
-                system_prompt = get_context_resolver_prompt(prev_assistant)
+                system_prompt = (
+                    "You are the Context Resolver for a Sainsbury's retail chatbot.\n"
+                    "The user has sent a follow-up or clarification message to the previous assistant response.\n\n"
+                    f"Previous Assistant Response:\n\"{prev_assistant}\"\n\n"
+                    "Your job is to analyze the history and decide between two output types:\n\n"
+                    "1. CLARIFICATION:\n"
+                    "If the previous assistant response offered multiple choices or actions "
+                    "(e.g., 'delivery or Click & Collect', 'directions or online ordering', 'directions or ordering online'), "
+                    "AND the user's current reply is a generic confirmation/acknowledgement ('yes', 'yeah', 'ok', 'sure', etc.) "
+                    "that does not specify which choice they want: "
+                    "You MUST generate a targeted clarification response asking the user to specify their choice.\n"
+                    "Rules for clarification response:\n"
+                    "- Do NOT make assumptions about which option they want.\n"
+                    "- Respond politely and directly ask which option they prefer.\n"
+                    "Output JSON format:\n"
+                    "{\n"
+                    "  \"type\": \"clarification\",\n"
+                    "  \"response\": \"<your targeted clarification response>\"\n"
+                    "}\n\n"
+                    "2. RESOLVED QUERY:\n"
+                    "If the user's message is a follow-up question, or if they have specified their choice "
+                    "(e.g., 'first one', 'delivery', 'online'), or if only one option or action was offered,\n"
+                    "or if the previous question was a simple yes/no query (e.g. 'Would you like to check the price?'):\n"
+                    "You MUST output a RESOLVED QUERY. Do NOT generate a CLARIFICATION for a yes/no question when the user answers 'sure', 'yes', 'ok', etc.\n"
+                    "Resolve the user's message into a standalone, complete, detail-rich retail search/intent query "
+                    "that combines the current user message with all necessary details from the history (like product name, "
+                    "order ID, store location) so it can be processed independently by the supervisor/specialist agents.\n"
+                    "Output JSON format:\n"
+                    "{\n"
+                    "  \"type\": \"resolved_query\",\n"
+                    "  \"query\": \"<standalone resolved retail query>\"\n"
+                    "}\n\n"
+                    "Return ONLY valid JSON. No explanations, no markdown formatting, no code blocks."
+                )
 
                 res = self._openai_client.chat.completions.create(
                     model=deployment,
@@ -602,7 +651,7 @@ class AgentRouter:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"CONVERSATION HISTORY:\n{history_snippet}\n\nUSER MESSAGE: {message}"}
                     ],
-                    max_tokens=150,
+                    max_completion_tokens=150,
                     temperature=0.0,
                 )
                 content = res.choices[0].message.content.strip()
@@ -751,169 +800,73 @@ class AgentRouter:
 
     async def _call_foundry_agent(
         self,
-        agent_id: str,
+        agent_id: str,          # In new Foundry SDK, this is the agent NAME
         context: str,
         task_query: str,
         history: list[dict],
         extra_instructions: str = "",
     ) -> str:
         """
-        Invokes a single Azure AI Foundry agent.
+        Invokes a single Azure AI Foundry agent using the reference pattern:
+        AIProjectClient → get_openai_client() → conversations + responses API.
+        The agent_id parameter holds the agent NAME (e.g. 'Order-Agent').
         """
-        if not self._agents_client:
-            raise RuntimeError("AgentsClient not initialised.")
+        if not self._openai_client:
+            raise RuntimeError("OpenAI client not initialised.")
+
+        agent_name = agent_id   # In the new SDK, we call agents by name
+        logger.info("[AgentRouter] === AZURE AI FOUNDRY AGENT INVOCATION ===")
+        logger.info("[AgentRouter] Agent: %s | Query: %s", agent_name, task_query[:150])
 
         loop = asyncio.get_event_loop()
+        t_start = time.perf_counter()
 
-        # ── 1. Create thread ──────────────────────────────────────────────────
-        thread = await loop.run_in_executor(
-            None, self._agents_client.threads.create
-        )
-        thread_id = thread.id
-
-        # ── 2. Inject customer context (first message in thread) ─────────────
-        context_msg = context
+        # Build full input: inject context + history + task_query
+        messages_input = []
+        if context:
+            messages_input.append({"role": "system", "content": context})
         if extra_instructions:
-            context_msg += f"\n\n[ROUTING NOTE]: {extra_instructions}"
-
-        await loop.run_in_executor(
-            None,
-            lambda: self._agents_client.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=context_msg,
-            ),
-        )
-
-        # ── 3. Replay recent conversation history ────────────────────────────
-        for turn in history[-4:]:
+            messages_input.append({"role": "system", "content": extra_instructions})
+        for turn in history[-6:]:
             role    = turn.get("role", "user")
             content = turn.get("content", "").strip()
             if role in ("user", "assistant") and content:
-                r = role
-                await loop.run_in_executor(
-                    None,
-                    lambda r=r, content=content: self._agents_client.messages.create(
-                        thread_id=thread_id,
-                        role=r,
-                        content=content,
-                    ),
-                )
+                messages_input.append({"role": role, "content": content})
+        messages_input.append({"role": "user", "content": task_query})
 
-        # ── 4. Add the task query ────────────────────────────────────────────
-        await loop.run_in_executor(
-            None,
-            lambda: self._agents_client.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=task_query,
-            ),
+        # Flatten to a single string input for responses API
+        full_input = "\n\n".join(
+            f"{m['role'].upper()}: {m['content']}" for m in messages_input
         )
 
-        # ── 5. Create run ────────────────────────────────────────────────────
-        run = await loop.run_in_executor(
-            None,
-            lambda: self._agents_client.runs.create(
-                thread_id=thread_id,
-                agent_id=agent_id,
-            ),
-        )
-
-        # ── 6. Poll and handle tool calls ────────────────────────────────────
-        max_wait    = 120   # seconds
-        elapsed     = 0.0
-        terminal    = {"completed", "failed", "cancelled", "expired"}
-
-        # Dynamic polling interval for real-time voice experience
-        current_poll = 0.1
-        while run.status not in terminal:
-            if elapsed >= max_wait:
-                print(f"[AgentRouter] Run timed out after {max_wait}s.")
-                break
-
-            await asyncio.sleep(current_poll)
-            elapsed += current_poll
-            
-            # Backoff polling slightly to avoid overloading the API
-            current_poll = min(current_poll + 0.05, 0.4)
-
-            run = await loop.run_in_executor(
-                None,
-                lambda: self._agents_client.runs.get(
-                    thread_id=thread_id, run_id=run.id
-                ),
+        # Call agent via responses API with agent_reference
+        def _call():
+            return self._openai_client.responses.create(
+                input=full_input,
+                extra_body={
+                    "agent_reference": {
+                        "name": agent_name,
+                        "type": "agent_reference",
+                    }
+                },
             )
 
-            # Handle tool calls
-            if run.status == "requires_action":
-                tool_outputs = []
-                try:
-                    calls = run.required_action.submit_tool_outputs.tool_calls
-                except AttributeError:
-                    calls = []
+        try:
+            response = await loop.run_in_executor(None, _call)
+        except Exception as e:
+            # Fallback: try without extra_body (some SDK versions handle it differently)
+            logger.warning("[AgentRouter] responses.create with agent_reference failed: %s. Retrying without extra_body.", e)
+            def _call_plain():
+                return self._openai_client.responses.create(
+                    model=agent_name,
+                    input=full_input,
+                )
+            response = await loop.run_in_executor(None, _call_plain)
 
-                for call in calls:
-                    func_name = call.function.name
-                    try:
-                        func_args = json.loads(call.function.arguments)
-                    except Exception:
-                        func_args = {}
-
-                    # Reload context after any DB mutation
-                    result = self._execute_tool(func_name, func_args)
-
-                    tool_outputs.append({
-                        "tool_call_id": call.id,
-                        "output":       result,
-                    })
-
-                if tool_outputs:
-                    # Update context with latest customer data after DB mutations
-                    updated_customer = self._load_customer_data()
-                    self.context = build_context_block(updated_customer)
-
-                    run = await loop.run_in_executor(
-                        None,
-                        lambda: self._agents_client.runs.submit_tool_outputs(
-                            thread_id=thread_id,
-                            run_id=run.id,
-                            tool_outputs=tool_outputs,
-                        ),
-                    )
-
-        if run.status == "failed":
-            err = getattr(run, "last_error", None)
-            raise RuntimeError(f"Foundry run failed: {err}")
-
-        # ── 7. Retrieve assistant reply ───────────────────────────────────────
-        messages = await loop.run_in_executor(
-            None,
-            lambda: list(self._agents_client.messages.list(thread_id=thread_id)),
-        )
-
-        # Messages are returned newest-first; find the last assistant message
-        for msg in messages:
-            if msg.role == "assistant":
-                content = msg.content
-                if isinstance(content, list):
-                    text_parts = []
-                    for block in content:
-                        if hasattr(block, "text"):
-                            val = block.text
-                            if hasattr(val, "value"):
-                                text_parts.append(val.value)
-                            else:
-                                text_parts.append(str(val))
-                        elif isinstance(block, str):
-                            text_parts.append(block)
-                    return "\n".join(text_parts).strip()
-                return str(content).strip()
-
-        return ""
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # Supervisor Routing (calls Foundry Supervisor-Agent for decomposition)
-    # ─────────────────────────────────────────────────────────────────────────
+        t_done = time.perf_counter() - t_start
+        reply = getattr(response, "output_text", None) or str(response)
+        logger.info("[AgentRouter] Agent '%s' replied in %.2fs. Length: %d", agent_name, t_done, len(reply))
+        return reply
 
     async def _decompose_via_supervisor(
         self, message: str, history: list[dict]
@@ -927,7 +880,7 @@ class AgentRouter:
             for t in history[-5:]
         )
 
-        if supervisor_id and self._agents_client:
+        if supervisor_id and self._openai_client:
             # Build a structured routing request for the Supervisor-Agent
             routing_request = (
                 f"CONVERSATION HISTORY:\n{history_snippet}\n\n"
@@ -959,7 +912,12 @@ class AgentRouter:
 
         # Direct LLM fallback if Supervisor Agent is not in Foundry but OpenAI client is available
         if self._openai_client:
-            routing_prompt = SUPERVISOR_ROUTING_PROMPT
+            routing_prompt = (
+            "You are the Supervisor Agent for a Sainsbury's retail AI assistant.\n"
+            "Analyse the user request and return a JSON array of tasks to route to specialist agents.\n"
+            "Available agents: order, delivery, refund, store, general.\n"
+            "Return ONLY valid JSON. Example: [{\"agent\": \"order\", \"task_query\": \"track order 123\"}]"
+        )
             try:
                 deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
                 loop = asyncio.get_event_loop()
@@ -970,7 +928,7 @@ class AgentRouter:
                             {"role": "system", "content": routing_prompt},
                             {"role": "user", "content": message}
                         ],
-                        max_tokens=300,
+                        max_completion_tokens=300,
                         temperature=0.0,
                     )
                 res = await loop.run_in_executor(None, call_routing)
@@ -1057,7 +1015,7 @@ class AgentRouter:
             "Keep all important details. No duplicate greetings or sign-offs."
         )
 
-        if supervisor_id and self._agents_client:
+        if supervisor_id and self._openai_client:
             try:
                 merged = await self._call_foundry_agent(
                     agent_id=supervisor_id,
@@ -1075,7 +1033,11 @@ class AgentRouter:
         if self._openai_client:
             try:
                 deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-4o")
-                merge_prompt = SUPERVISOR_MERGE_PROMPT
+                merge_prompt = (
+            "You are a response synthesiser for a Sainsbury's retail assistant.\n"
+            "Merge the following agent responses into a single, coherent, friendly reply.\n"
+            "Be concise. Do not repeat information. Use British English."
+        )
                 loop = asyncio.get_event_loop()
                 def call_merge():
                     return self._openai_client.chat.completions.create(
@@ -1084,7 +1046,7 @@ class AgentRouter:
                             {"role": "system", "content": merge_prompt},
                             {"role": "user", "content": merge_request}
                         ],
-                        max_tokens=500,
+                        max_completion_tokens=500,
                         temperature=0.0,
                     )
                 res = await loop.run_in_executor(None, call_merge)
@@ -1149,7 +1111,11 @@ class AgentRouter:
                 for t in history[-4:]
             )
             
-            system_prompt = SUGGESTIONS_SYSTEM_PROMPT
+            system_prompt = (
+            "You are a helpful Sainsbury's retail assistant.\n"
+            "Based on the conversation, suggest 3 short follow-up questions the user might ask next.\n"
+            "Return ONLY a JSON array of strings. Example: [\"Where is my order?\", \"Can I return it?\"]"
+        )
             user_input = (
                 f"CONVERSATION HISTORY:\n{history_snippet}\n\n"
                 f"LAST USER MESSAGE: {message}\n\n"
@@ -1166,7 +1132,7 @@ class AgentRouter:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_input}
                     ],
-                    max_tokens=150,
+                    max_completion_tokens=150,
                     temperature=0.0,
                 )
                 
@@ -1277,7 +1243,7 @@ class AgentRouter:
                 f"total=£{o.get('total', o.get('total_price', 0)):.2f}. "
             )
 
-        voice_system_prompt = get_voice_system_prompt(
+        voice_system_prompt = _build_voice_prompt(
             name=name,
             email=email,
             loyalty=loyalty,
@@ -1303,7 +1269,7 @@ class AgentRouter:
                 resp = await self._async_openai_client.chat.completions.create(
                     model=deployment,
                     messages=msgs,
-                    max_tokens=60,     # hard cap → forces short answers
+                    max_completion_tokens=60,     # hard cap → forces short answers
                     temperature=0.0,    # deterministic, fastest
                     top_p=1.0,
                     frequency_penalty=0.0,
@@ -1322,7 +1288,7 @@ class AgentRouter:
                 res = self._openai_client.chat.completions.create(
                     model=deployment,
                     messages=msgs,
-                    max_tokens=60,     # hard cap → forces short answers
+                    max_completion_tokens=60,     # hard cap → forces short answers
                     temperature=0.0,    # deterministic, fastest
                     top_p=1.0,
                     frequency_penalty=0.0,
@@ -1461,7 +1427,7 @@ class AgentRouter:
         # ── 3. General-knowledge questions ────────────────────────────────────
         if domain == "general" or (intent == "new_general" and not is_follow_up):
             general_id = self._agent_ids.get("general")
-            if general_id and self._agents_client:
+            if general_id and self._openai_client:
                 try:
                     reply = await self._call_foundry_agent(
                         agent_id=general_id,
@@ -1523,7 +1489,7 @@ class AgentRouter:
             task_query = task.get("task_query", message)
             agent_id   = self._agent_ids.get(agent_type)
 
-            if agent_id and self._agents_client:
+            if agent_id and self._openai_client:
                 try:
                     reply = await self._call_foundry_agent(
                         agent_id=agent_id,
@@ -1553,7 +1519,7 @@ class AgentRouter:
                         messages=msgs,
                         tools=tools if tools else None,
                         tool_choice="auto" if tools else None,
-                        max_tokens=800,
+                        max_completion_tokens=800,
                         temperature=0.0,
                     )
                     msg = resp.choices[0].message
@@ -1567,7 +1533,7 @@ class AgentRouter:
                         self.context = build_context_block(updated)
                         msgs[0]["content"] = self.context
                         final = self._openai_client.chat.completions.create(
-                            model=deployment, messages=msgs, max_tokens=800, temperature=0.0)
+                            model=deployment, messages=msgs, max_completion_tokens=800, temperature=0.0)
                         return final.choices[0].message.content.strip()
                     return msg.content.strip()
                 except Exception as e:
