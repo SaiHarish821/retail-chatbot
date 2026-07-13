@@ -1,0 +1,26 @@
+{
+    "name": "issue_refund",
+    "description": "Issues a refund for a spoiled or damaged item in a delivered order.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "order_id": {
+                "type": "string"
+            },
+            "reason": {
+                "type": "string"
+            },
+            "amount": {
+                "type": "number"
+            },
+            "method": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "order_id",
+            "reason",
+            "amount"
+        ]
+    }
+}

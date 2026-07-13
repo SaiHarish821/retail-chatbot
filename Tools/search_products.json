@@ -1,0 +1,57 @@
+{
+    "name": "search_products",
+    "description": "Searches and filters the product catalog using criteria like name/query, category, dietary tags (organic, vegan, gluten_free, sugar_free, high_protein, lactose_free, healthy_choice), promotions, and custom sorting.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search term, e.g. milk, eggs, sourdough"
+            },
+            "category": {
+                "type": "string",
+                "description": "Product category, e.g. Dairy, Bakery, Produce"
+            },
+            "dietary_filters": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": [
+                        "organic",
+                        "vegan",
+                        "gluten_free",
+                        "sugar_free",
+                        "high_protein",
+                        "lactose_free",
+                        "healthy_choice"
+                    ]
+                },
+                "description": "List of dietary/health filters"
+            },
+            "sort_by": {
+                "type": "string",
+                "enum": [
+                    "price_asc",
+                    "price_desc",
+                    "rating",
+                    "popularity"
+                ]
+            },
+            "best_seller": {
+                "type": "boolean"
+            },
+            "store_recommended": {
+                "type": "boolean"
+            },
+            "is_on_promotion": {
+                "type": "boolean"
+            },
+            "store_name": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer"
+            }
+        }
+    }
+}

@@ -1,0 +1,8 @@
+{
+    "name": "get_active_promotions",
+    "description": "Retrieves the list of active store promotions and discount coupon codes.",
+    "parameters": {
+        "type": "object",
+        "properties": {}
+    }
+}

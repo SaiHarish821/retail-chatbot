@@ -1,12 +1,18 @@
 import os
 import logging
 import re
+import time
+import json
 from azure.communication.identity import CommunicationIdentityClient, CommunicationTokenScope
 from azure.communication.callautomation import (
     CallAutomationClient,
     TextSource,
     CommunicationUserIdentifier,
-    RecognizeInputType
+    RecognizeInputType,
+    MediaStreamingOptions,
+    StreamingTransportType,
+    MediaStreamingContentType,
+    MediaStreamingAudioChannelType
 )
 
 logger = logging.getLogger(__name__)
@@ -86,25 +92,31 @@ class ACSBotManager:
 
     async def answer_incoming_call(self, incoming_call_context: str):
         """
-        Answers an incoming call and directs it to the callback URL.
+        Answers an incoming call and directs it to the callback URL, configuring bidirectional media streaming.
         """
         if not self.call_automation_client:
             raise RuntimeError("ACS Call Automation Client is not initialized.")
         
         callback_uri = f"{self.public_callback_url}/api/callback"
-        cog_endpoint = os.getenv("COGNITIVE_SERVICES_ENDPOINT", "").strip()
-        if not cog_endpoint:
-            cog_endpoint = f"https://{self.speech_region}.api.cognitive.microsoft.com"
-        else:
-            cog_endpoint = cog_endpoint.rstrip("/")
-            
-        logger.info(f"Answering call. Callback: {callback_uri} | Speech Endpoint: {cog_endpoint}")
+        
+        # Configure Media Streaming Options pointing to the media stream WebSocket
+        ws_url = self.public_callback_url.replace("https://", "wss://").replace("http://", "ws://") + "/api/media-stream"
+        media_streaming_options = MediaStreamingOptions(
+            transport_url=ws_url,
+            transport_type=StreamingTransportType.WEBSOCKET,
+            content_type=MediaStreamingContentType.AUDIO,
+            audio_channel_type=MediaStreamingAudioChannelType.MIXED,
+            start_media_streaming=True
+        )
+        
+        logger.info(f"[ACSBot] Answering incoming call. Callback: {callback_uri} | Media Streaming WS: {ws_url}")
         
         answer_result = self.call_automation_client.answer_call(
             incoming_call_context=incoming_call_context,
             callback_url=callback_uri,
-            cognitive_services_endpoint=cog_endpoint
+            media_streaming=media_streaming_options
         )
+        logger.info(f"[ACSBot] Call answered successfully. Connection ID: {answer_result.call_connection_id}")
         return answer_result
 
     async def handle_callback_events(self, events: list, agent_router):
@@ -117,7 +129,7 @@ class ACSBotManager:
             call_connection_id = event_data.get("callConnectionId")
             server_call_id = event_data.get("serverCallId")
             
-            logger.info(f"Received ACS Event: {event_type} for Call: {call_connection_id} (Server Call: {server_call_id})")
+            logger.info(f"[ACSBot] Received Event: {event_type} | Connection: {call_connection_id} | ServerCall: {server_call_id}")
             
             if not call_connection_id or not self.call_automation_client:
                 continue
@@ -129,167 +141,14 @@ class ACSBotManager:
                     "status": "CONNECTING",
                     "history": []
                 }
-
-            call_connection_client = self.call_automation_client.get_call_connection(call_connection_id)
             
             if event_type == "Microsoft.Communication.CallConnected":
-                logger.info(f"Call Connected. Playing greeting and starting recognition...")
-                greeting_text = "Hello, I am your Sainsbury's virtual assistant. How can I help you today?"
-                
-                if server_call_id:
-                    self.active_calls[server_call_id]["ai_response"] = greeting_text
-                    self.active_calls[server_call_id]["status"] = "SPEAKING"
-                    self.active_calls[server_call_id]["history"] = [
-                        {"role": "assistant", "content": greeting_text}
-                    ]
-                
-                await self._speak_and_recognize(
-                    call_connection_client,
-                    text=greeting_text
-                )
-
-            elif event_type == "Microsoft.Communication.RecognizeCompleted":
-                logger.info("Speech recognition completed successfully.")
-                speech_text = (
-                    event_data.get("speechResult", {}).get("speech")
-                    or event_data.get("speechResult", {}).get("text")
-                    or ""
-                ).strip()
-                logger.info(f"User Said: {speech_text}")
-                
-                if server_call_id:
-                    self.active_calls[server_call_id]["user_transcript"] = speech_text
-                    self.active_calls[server_call_id]["status"] = "PROCESSING"
-                
-                if not speech_text:
-                    reprompt_text = "I didn't hear anything. Could you please repeat that?"
-                    if server_call_id:
-                        self.active_calls[server_call_id]["ai_response"] = reprompt_text
-                        self.active_calls[server_call_id]["status"] = "SPEAKING"
-                        if "history" not in self.active_calls[server_call_id]:
-                            self.active_calls[server_call_id]["history"] = []
-                        self.active_calls[server_call_id]["history"].append({"role": "assistant", "content": reprompt_text})
-                    await self._speak_and_recognize(
-                        call_connection_client,
-                        text=reprompt_text
-                    )
-                    continue
-
-                # Query agent router to get reply
-                try:
-                    # In a telephone session we can maintain context memory
-                    history = self.active_calls[server_call_id].get("history", []) if server_call_id else []
-                    result = await agent_router.handle(message=speech_text, history=history, is_voice=True)
-                    reply_text = result.get("reply", "I am sorry, I did not catch that.")
-                except Exception as e:
-                    logger.error(f"Error in AgentRouter: {e}")
-                    reply_text = "I am sorry, I am having trouble connecting to my service right now."
-
-                if server_call_id:
-                    if "history" not in self.active_calls[server_call_id]:
-                        self.active_calls[server_call_id]["history"] = []
-                    self.active_calls[server_call_id]["history"].append({"role": "user", "content": speech_text})
-                    self.active_calls[server_call_id]["history"].append({"role": "assistant", "content": reply_text})
-                    self.active_calls[server_call_id]["ai_response"] = reply_text
-                    
-                    # Store intent and suggestions to expose via status polling endpoint
-                    self.active_calls[server_call_id]["intent"] = result.get("intent", "general") if isinstance(result, dict) else "general"
-                    self.active_calls[server_call_id]["suggestions"] = result.get("suggestions", []) if isinstance(result, dict) else []
-                    self.active_calls[server_call_id]["status"] = "SPEAKING"
-
-                # Sanitize prompt for TTS
-                tts_text = sanitize_text_for_tts(reply_text)
-                logger.info(f"Playing sanitized TTS prompt: '{tts_text}'")
-
-                # Play response and listen for next turn
-                await self._speak_and_recognize(
-                    call_connection_client,
-                    text=tts_text
-                )
-
-            elif event_type == "Microsoft.Communication.RecognizeFailed":
-                result_info = event_data.get("resultInformation", {})
-                sub_code = result_info.get("subCode")
-                msg = result_info.get("message")
-                logger.warning(f"Speech recognition failed (subCode={sub_code}, message={msg}). Full data: {event_data}")
-                # Reprompt the user and listen again
-                reprompt_text = "I'm sorry, I didn't catch that. Could you repeat it?"
-                if server_call_id:
-                    self.active_calls[server_call_id]["ai_response"] = reprompt_text
-                    self.active_calls[server_call_id]["status"] = "SPEAKING"
-                    if "history" not in self.active_calls[server_call_id]:
-                        self.active_calls[server_call_id]["history"] = []
-                    self.active_calls[server_call_id]["history"].append({"role": "assistant", "content": reprompt_text})
-                await self._speak_and_recognize(
-                    call_connection_client,
-                    text=reprompt_text
-                )
-
-            elif event_type == "Microsoft.Communication.PlayStarted":
-                logger.info("Prompt playback started. Setting status to SPEAKING.")
-                if server_call_id:
-                    self.active_calls[server_call_id]["status"] = "SPEAKING"
-
-            elif event_type in ["Microsoft.Communication.PlayCompleted", "Microsoft.Communication.PlayFailed"]:
-                logger.info(f"Prompt playback finished/failed ({event_type}). Setting status to LISTENING.")
+                logger.info(f"[ACSBot] Call Connected. Media streaming has been started.")
                 if server_call_id:
                     self.active_calls[server_call_id]["status"] = "LISTENING"
-                
+
             elif event_type == "Microsoft.Communication.CallDisconnected":
                 logger.info("Call disconnected. Cleaning up.")
                 if server_call_id:
                     self.active_calls[server_call_id]["status"] = "DISCONNECTED"
 
-    async def _speak_and_recognize(self, call_connection_client, text: str):
-        """
-        Play text response to all participants and start speech recognition on the caller.
-        """
-        try:
-            # Get the caller identifier
-            props = call_connection_client.get_call_properties()
-            caller = None
-            
-            # 1. Try checking targets (filtering out the bot user ID)
-            if props.targets:
-                for target in props.targets:
-                    t_id = target.properties.get("id") if hasattr(target, "properties") and target.properties else getattr(target, "raw_id", None)
-                    if t_id and t_id != self.bot_user_id:
-                        caller = target
-                        break
-
-            # 2. Try checking call_source
-            if not caller and hasattr(props, "call_source") and props.call_source:
-                src_identifier = getattr(props.call_source, "identifier", None)
-                if src_identifier:
-                    src_id = src_identifier.properties.get("id") if hasattr(src_identifier, "properties") and src_identifier.properties else getattr(src_identifier, "raw_id", None)
-                    if src_id and src_id != self.bot_user_id:
-                        caller = src_identifier
-
-            # 3. Fallback: list participants to locate the caller
-            if not caller:
-                participants = call_connection_client.list_participants()
-                for p in participants:
-                    p_id = p.identifier.properties.get("id") if hasattr(p.identifier, "properties") and p.identifier.properties else getattr(p.identifier, "raw_id", None)
-                    if p_id and p_id != self.bot_user_id:
-                        caller = p.identifier
-                        break
-
-            if caller:
-                # Define prompt TextSource using high quality Azure Neural voice
-                play_prompt = TextSource(text=text, voice_name="en-GB-SoniaNeural")
-                
-                # Start speech recognition which handles prompt playback & barge-in interruption
-                call_connection_client.start_recognizing_media(
-                    input_type=RecognizeInputType.SPEECH,
-                    target_participant=caller,
-                    play_prompt=play_prompt,
-                    interrupt_prompt=True,
-                    speech_language="en-GB",
-                    initial_silence_timeout=10,
-                    end_silence_timeout=2
-                )
-                logger.info(f"Started speak_and_recognize: '{text}' -> caller {getattr(caller, 'raw_id', 'unknown')}")
-            else:
-                logger.error("Could not find a valid caller identifier to play media and recognize speech.")
-        except Exception as e:
-            logger.error(f"Failed to play and recognize media: {e}")

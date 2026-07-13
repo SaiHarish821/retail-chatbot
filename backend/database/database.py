@@ -2,6 +2,10 @@ import sqlite3
 import os
 import json
 import shutil
+import psycopg2
+import psycopg2.extras
+import time
+from psycopg2.pool import ThreadedConnectionPool
 
 ORIGINAL_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "mock_data", "retail_chatbot.db"))
 
@@ -20,12 +24,190 @@ if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
 else:
     DB_PATH = ORIGINAL_DB_PATH
 
+_cached_db_type = None
+_pg_pool = None
+
+def get_db_type() -> str:
+    global _cached_db_type
+    if _cached_db_type is not None:
+        return _cached_db_type
+        
+    host = os.getenv("AZURE_POSTGRESQL_HOST") or os.getenv("DB_HOST")
+    if host:
+        dbname = os.getenv("AZURE_POSTGRESQL_DB") or os.getenv("DB_NAME", "retail_chatbot")
+        user = os.getenv("AZURE_POSTGRESQL_USER") or os.getenv("DB_USER", "postgres")
+        password = os.getenv("AZURE_POSTGRESQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
+        port = os.getenv("AZURE_POSTGRESQL_PORT") or os.getenv("DB_PORT", "5432")
+        sslmode = os.getenv("AZURE_POSTGRESQL_SSLMODE") or os.getenv("DB_SSLMODE", "require")
+        try:
+            conn = psycopg2.connect(
+                host=host,
+                database=dbname,
+                user=user,
+                password=password,
+                port=port,
+                sslmode=sslmode,
+                connect_timeout=2
+            )
+            conn.close()
+            _cached_db_type = "postgres"
+            return "postgres"
+        except Exception:
+            pass
+            
+    _cached_db_type = "sqlite"
+    return "sqlite"
+
+class DatabaseCursor:
+    def __init__(self, cursor, db_type):
+        self.cursor = cursor
+        self.db_type = db_type
+
+    def execute(self, query, params=None):
+        if self.db_type == "postgres":
+            query = query.replace("?", "%s")
+            if "INTEGER PRIMARY KEY AUTOINCREMENT" in query:
+                query = query.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+            if "INSERT OR IGNORE INTO" in query:
+                query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+                if "stores" in query:
+                    query += " ON CONFLICT (id) DO NOTHING"
+                elif "products" in query:
+                    query += " ON CONFLICT (id) DO NOTHING"
+                elif "product_stock" in query:
+                    query += " ON CONFLICT (product_id, store_id) DO NOTHING"
+                elif "promotions" in query:
+                    query += " ON CONFLICT (offer_id) DO NOTHING"
+        
+        # Resilient query execution retry policy
+        max_retries = 3
+        backoff = 0.5
+        for attempt in range(max_retries):
+            try:
+                if params is not None:
+                    self.cursor.execute(query, params)
+                else:
+                    self.cursor.execute(query)
+                return
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep(backoff)
+                backoff *= 2
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+    def close(self):
+        self.cursor.close()
+
+    def __iter__(self):
+        return iter(self.cursor)
+
+class DatabaseConnection:
+    def __init__(self, conn, db_type):
+        self.conn = conn
+        self.db_type = db_type
+
+    def cursor(self):
+        if self.db_type == "postgres":
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        else:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.cursor()
+        return DatabaseCursor(cursor, self.db_type)
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        global _pg_pool
+        if self.db_type == "postgres" and _pg_pool is not None:
+            try:
+                _pg_pool.putconn(self.conn)
+            except Exception:
+                self.conn.close()
+        else:
+            self.conn.close()
+
+    @property
+    def row_factory(self):
+        if self.db_type == "sqlite":
+            return self.conn.row_factory
+        return None
+
+    @row_factory.setter
+    def row_factory(self, value):
+        if self.db_type == "sqlite":
+            self.conn.row_factory = value
+
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    global _pg_pool
+    if get_db_type() == "postgres":
+        db_host = os.getenv("AZURE_POSTGRESQL_HOST") or os.getenv("DB_HOST")
+        dbname = os.getenv("AZURE_POSTGRESQL_DB") or os.getenv("DB_NAME", "retail_chatbot")
+        user = os.getenv("AZURE_POSTGRESQL_USER") or os.getenv("DB_USER", "postgres")
+        password = os.getenv("AZURE_POSTGRESQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
+        port = os.getenv("AZURE_POSTGRESQL_PORT") or os.getenv("DB_PORT", "5432")
+        sslmode = os.getenv("AZURE_POSTGRESQL_SSLMODE") or os.getenv("DB_SSLMODE", "require")
+        
+        if _pg_pool is None:
+            try:
+                _pg_pool = ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=20,
+                    host=db_host,
+                    database=dbname,
+                    user=user,
+                    password=password,
+                    port=port,
+                    sslmode=sslmode
+                )
+            except Exception as e:
+                # If pool creation fails, fallback directly
+                conn = psycopg2.connect(
+                    host=db_host,
+                    database=dbname,
+                    user=user,
+                    password=password,
+                    port=port,
+                    sslmode=sslmode
+                )
+                return DatabaseConnection(conn, "postgres")
+                
+        try:
+            conn = _pg_pool.getconn()
+            return DatabaseConnection(conn, "postgres")
+        except Exception:
+            # Fallback direct connection if pool exhausted
+            conn = psycopg2.connect(
+                host=db_host,
+                database=dbname,
+                user=user,
+                password=password,
+                port=port,
+                sslmode=sslmode
+            )
+            return DatabaseConnection(conn, "postgres")
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        return DatabaseConnection(conn, "sqlite")
 
 def init_db():
-    # Ensure parent directory exists
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    global _cached_inventory_data
+    _cached_inventory_data = None
+    if get_db_type() == "sqlite":
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     
     conn = get_connection()
     cursor = conn.cursor()
@@ -307,22 +489,39 @@ def decorate_product(item: dict) -> dict:
     }
 
 def check_needs_reseed() -> bool:
+    db_type = get_db_type()
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='promotions'")
-    has_promotions = cursor.fetchone() is not None
-    if not has_promotions:
-        conn.close()
-        return True
-    cursor.execute("PRAGMA table_info(products)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "customer_rating" not in columns:
-        conn.close()
-        return True
+    
+    if db_type == "postgres":
+        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='promotions'")
+        has_promotions = cursor.fetchone() is not None
+        if not has_promotions:
+            conn.close()
+            return True
+        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='products'")
+        columns = [row[0] for row in cursor.fetchall()]
+        if "customer_rating" not in columns:
+            conn.close()
+            return True
+    else:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='promotions'")
+        has_promotions = cursor.fetchone() is not None
+        if not has_promotions:
+            conn.close()
+            return True
+        cursor.execute("PRAGMA table_info(products)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "customer_rating" not in columns:
+            conn.close()
+            return True
+            
     conn.close()
     return False
 
 def seed_db(force=False):
+    global _cached_inventory_data
+    _cached_inventory_data = None
     if force or check_needs_reseed():
         print("[Database] Schema mismatch or force flag. Dropping tables for re-seeding...")
         conn = get_connection()
@@ -486,7 +685,13 @@ def seed_db(force=False):
     conn.commit()
     conn.close()
 
+_cached_inventory_data = None
+
 def load_db_inventory_data() -> dict:
+    global _cached_inventory_data
+    if _cached_inventory_data is not None:
+        return _cached_inventory_data
+
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -633,7 +838,7 @@ def load_db_inventory_data() -> dict:
         
     conn.close()
     
-    return {
+    _cached_inventory_data = {
         "metadata": {
             "version": "2.0",
             "generated": "2026-06-18",
@@ -642,6 +847,7 @@ def load_db_inventory_data() -> dict:
         },
         "inventory": inventory
     }
+    return _cached_inventory_data
 
 def load_db_customer_data() -> dict:
     conn = get_connection()
@@ -679,22 +885,17 @@ def load_db_customer_data() -> dict:
     cursor.execute("SELECT * FROM orders WHERE customer_id = ?", (cust_dict["id"],))
     order_rows = cursor.fetchall()
     
+    if not order_rows:
+        conn.close()
+        return customer_data
+        
+    orders_map = {}
+    order_ids = []
     for orow in order_rows:
         o_dict = dict(orow)
         order_id = o_dict["order_id"]
+        order_ids.append(order_id)
         
-        # Load items
-        cursor.execute("SELECT name, qty, price FROM order_items WHERE order_id = ?", (order_id,))
-        item_rows = cursor.fetchall()
-        items = [dict(irow) for irow in item_rows]
-        
-        # Load refund
-        cursor.execute("SELECT * FROM refunds WHERE order_id = ?", (order_id,))
-        ref_row = cursor.fetchone()
-        refund = dict(ref_row) if ref_row else None
-        if refund:
-            refund.pop("order_id", None)
-            
         # Reconstruct delivery object
         delivery = {}
         if o_dict.get("delivery_method"):
@@ -715,14 +916,42 @@ def load_db_customer_data() -> dict:
             "order_id": order_id,
             "date": o_dict["date"],
             "status": o_dict["status"],
-            "items": items,
+            "items": [],
             "total": o_dict["total"],
             "payment_method": o_dict["payment_method"],
             "delivery": delivery,
-            "refund": refund
+            "refund": None
         }
         customer_data["orders"].append(order_obj)
+        orders_map[order_id] = order_obj
+
+    # Load order items and refunds for all order_ids using IN clause (minimizing database queries)
+    if order_ids:
+        placeholders = ",".join("?" for _ in order_ids)
         
+        # Fetch items
+        cursor.execute(f"SELECT order_id, name, qty, price FROM order_items WHERE order_id IN ({placeholders})", tuple(order_ids))
+        item_rows = cursor.fetchall()
+        for irow in item_rows:
+            i_dict = dict(irow)
+            o_id = i_dict["order_id"]
+            if o_id in orders_map:
+                orders_map[o_id]["items"].append({
+                    "name": i_dict["name"],
+                    "qty": i_dict["qty"],
+                    "price": i_dict["price"]
+                })
+                
+        # Fetch refunds
+        cursor.execute(f"SELECT * FROM refunds WHERE order_id IN ({placeholders})", tuple(order_ids))
+        refund_rows = cursor.fetchall()
+        for rrow in refund_rows:
+            r_dict = dict(rrow)
+            o_id = r_dict["order_id"]
+            if o_id in orders_map:
+                r_dict.pop("order_id", None)
+                orders_map[o_id]["refund"] = r_dict
+
     conn.close()
     return customer_data
 

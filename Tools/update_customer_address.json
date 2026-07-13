@@ -1,0 +1,22 @@
+{
+    "name": "update_customer_address",
+    "description": "Updates the customer's default delivery address in the database.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "line1": {
+                "type": "string"
+            },
+            "city": {
+                "type": "string"
+            },
+            "postcode": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "line1",
+            "city"
+        ]
+    }
+}

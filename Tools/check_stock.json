@@ -1,0 +1,18 @@
+{
+    "name": "check_stock",
+    "description": "Checks stock levels, price, and aisle of a product across stores.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "product_name": {
+                "type": "string"
+            },
+            "store_name": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "product_name"
+        ]
+    }
+}

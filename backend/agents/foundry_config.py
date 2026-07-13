@@ -15,7 +15,6 @@ class AgentNames:
     Maps each logical agent role to the exact name configured in AI Foundry Portal.
     Names are read from environment variables so they can be changed without code edits.
     """
-    supervisor: str = field(default_factory=lambda: os.getenv("AZURE_AGENT_SUPERVISOR_NAME", "Supervisor-Agent"))
     order:      str = field(default_factory=lambda: os.getenv("AZURE_AGENT_ORDER_NAME",      "Order-Agent"))
     delivery:   str = field(default_factory=lambda: os.getenv("AZURE_AGENT_DELIVERY_NAME",   "Delivery-Agent"))
     refund:     str = field(default_factory=lambda: os.getenv("AZURE_AGENT_REFUND_NAME",     "Refund-Agent"))
@@ -29,7 +28,6 @@ class AgentNames:
     def as_dict(self) -> dict[str, str]:
         """Returns a mapping of role -> agent_name for resolution lookups."""
         return {
-            "supervisor": self.supervisor,
             "order":      self.order,
             "delivery":   self.delivery,
             "refund":     self.refund,

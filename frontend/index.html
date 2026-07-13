@@ -1763,6 +1763,43 @@
     .header-inner { padding: 14px 20px; }
   }
 
+  .phone-listening-pop {
+    position: absolute !important;
+    top: 15px !important;
+    left: 50% !important;
+    transform: translateX(-50%) translateY(-20px) !important;
+    background: rgba(16, 185, 129, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(52, 211, 153, 0.4) !important;
+    color: white !important;
+    padding: 6px 14px !important;
+    border-radius: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4), 0 0 0 1px rgba(16, 185, 129, 0.1) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s !important;
+    z-index: 10 !important;
+  }
+  .phone-listening-pop.active {
+    opacity: 1 !important;
+    transform: translateX(-50%) translateY(0) !important;
+    pointer-events: auto !important;
+  }
+  .pop-mic-icon {
+    width: 14px;
+    height: 14px;
+    animation: pulseMic 1.2s infinite ease-in-out !important;
+  }
+  @keyframes pulseMic {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.75; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -2227,6 +2264,15 @@
   <!-- Phone Call Overlay — blended inside chatbot, replaces body content -->
   <div id="phoneCallOverlay" class="phone-call-overlay">
     <div class="phone-card">
+      <!-- Listening popup (glowing slide-down notification) -->
+      <div id="phoneListeningPop" class="phone-listening-pop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="pop-mic-icon">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+        <span>Speak Now – I'm listening</span>
+      </div>
 
       <!-- 1. Avatar with dual pulse rings -->
       <div class="phone-avatar-container">
@@ -2343,7 +2389,7 @@
 
 <!-- Scripts -->
 <script src="/static/js/azure-communication-services.js"></script>
-<script src="/static/js/app.js?v=1.0.1"></script>
+<script src="/static/js/app.js?v=1.0.5"></script>
 
 <script>
 // ── SCROLL ANIMATIONS ──

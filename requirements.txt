@@ -2,6 +2,7 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.1
 python-dotenv==1.0.1
 azure-ai-agents==1.1.0
+azure-ai-voicelive[aiohttp]
 azure-core
 azure-identity==1.19.0
 # NOTE (Windows Users): If you get "FileNotFoundError: Could not find module Microsoft.CognitiveServices.Speech.core.dll",
@@ -15,6 +16,10 @@ aiofiles==24.1.0
 pip-system-certs
 azure-communication-callautomation
 azure-communication-identity
-
-
-
+langchain
+langchain-openai
+langgraph
+psycopg2-binary
+azure-search-documents
+azure-monitor-opentelemetry
+opentelemetry-instrumentation-openai-v2

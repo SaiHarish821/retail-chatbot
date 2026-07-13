@@ -24,14 +24,38 @@ let isInCallMode = false;
 let callState = "IDLE"; // "IDLE", "GREETING", "LISTENING", "PROCESSING", "SPEAKING", "MUTED"
 let isPhoneMuted = false;
 let isPhoneSpeakerActive = true;
+let voiceSocket = null;
+let pcmPlayer = null;
+let voiceMode = "server_audio"; // "server_audio", "native_ws", "native_http"
+let isResponseFinished = false;
+
+// Browser-Native Voice Fallback variables
 let phoneRecognition = null;
 let phoneSilenceTimer = null;
 let currentUtterance = null;
-let currentAudioElement = null; // High-quality Azure neural voice audio
+let currentAudioElement = null;
 let phoneCurrentTurnTranscript = "";
-let phoneAccumulatedTurnTranscript = ""; // Accumulates finalized transcripts across browser restarts
-let phoneHasDetectedSpeechFallback = false;
-const PHONE_SILENCE_DURATION = 1000; // 1.0 second silence detection for Phone Call Mode to avoid cutting off user
+let phoneAccumulatedTurnTranscript = "";
+const PHONE_SILENCE_DURATION = 1000;
+
+
+// Voice Filler System & Playback Queue Globals
+const FILLER_GRACE_MS = 5000;   // wait 5s before first filler (skip if reply is faster)
+const FILLER_GAP_MIN_MS = 3500; // min pause between consecutive fillers
+const FILLER_GAP_MAX_MS = 6000; // max pause between consecutive fillers
+let fillerTrees = [];          // escalation sequences; each is an array of base64 clips
+let fillerThinking = [];       // short "hmm"-style interjection clips
+let currentTree = null;        // the tree chosen for the current wait
+let treeStep = 0;              // position within the current tree
+let awaitingResponse = false;  // user finished; we're waiting for agent audio
+let fillerActive = false;      // a filler clip is currently playing
+let fillerSource = null;       // current AudioBufferSourceNode for the filler
+let fillerTimer = null;
+let responseDone = false;      // agent signalled its audio response is complete
+let playbackQueue = [];        // holds incoming base64 audio chunks while filler is active
+let userTranscriptText = "";   // holds partial live user transcript
+
+
 
 // ── Customer data (mirrored for sidebar UX, loaded dynamically) ─────────────
 let customer = null;
@@ -53,11 +77,17 @@ const errorBanner   = document.getElementById("errorBanner");
 const toastEl       = document.getElementById("toast");
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
   fetchCustomerData();
   bindEvents();
   chatInput.focus();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 function renderSidebar() {
@@ -241,6 +271,7 @@ async function sendMessage(text) {
       body: JSON.stringify({
         message: text,
         conversation_history: conversationHistory.slice(-20),
+        stream: true
       }),
     });
 
@@ -249,13 +280,53 @@ async function sendMessage(text) {
       throw new Error(err.detail || `Server error ${response.status}`);
     }
 
-    const data = await response.json();
     removeTyping(typingId);
-    appendAIMessage(data.reply, data.intent, data.suggestions);
-    conversationHistory.push({ role: "assistant", content: data.reply });
+
+    const bubbleEl = createStreamingAIBubble();
+    let replyText = "";
+    let finalIntent = "general";
+    let finalSuggestions = [];
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "token") {
+              replyText += data.content;
+              updateStreamingAIBubbleText(bubbleEl, replyText);
+            } else if (data.type === "done") {
+              finalIntent = data.intent;
+              finalSuggestions = data.suggestions || [];
+              if (data.reply) {
+                replyText = data.reply;
+              }
+            } else if (data.type === "error") {
+              throw new Error(data.content);
+            }
+          } catch (e) {
+            console.error("Error parsing stream chunk:", e);
+          }
+        }
+      }
+    }
+
+    finalizeStreamingAIBubble(bubbleEl, replyText, finalIntent, finalSuggestions);
+    conversationHistory.push({ role: "assistant", content: replyText });
 
     if (isTtsEnabled) {
-      speakText(data.reply);
+      speakText(replyText);
     }
     
     // Refresh customer and orders in UI in case the agent executed tool updates
@@ -272,6 +343,82 @@ async function sendMessage(text) {
     isThinking = false;
     chatInput.focus();
   }
+}
+
+function createStreamingAIBubble() {
+  document.querySelectorAll(".active-suggestions").forEach(el => el.remove());
+
+  const div = document.createElement("div");
+  div.className = "message";
+  div.innerHTML = `
+    <div class="message-avatar ai-avatar">✦</div>
+    <div>
+      <div class="intent-tag ai-streaming-intent-tag" style="display: none; margin-bottom: 4px;"></div>
+      <div class="message-bubble ai-bubble ai-streaming-text-bubble">...</div>
+      <div class="message-meta ai-streaming-meta" style="display: none; margin-top: 4px;"></div>
+    </div>
+  `;
+  messagesEl.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function updateStreamingAIBubbleText(bubbleEl, text) {
+  const bubble = bubbleEl.querySelector(".ai-streaming-text-bubble");
+  if (bubble) {
+    bubble.textContent = text;
+  }
+  scrollToBottom();
+}
+
+function finalizeStreamingAIBubble(bubbleEl, text, intent, suggestions = []) {
+  const intentIcon = intentToIcon(intent);
+  const intentLabel = intent ? intent.replace(/_/g, " ") : "";
+  
+  const intentTag = bubbleEl.querySelector(".ai-streaming-intent-tag");
+  if (intentTag && intent && intent !== "error") {
+    intentTag.innerHTML = `${intentIcon} ${intentLabel}`;
+    intentTag.style.display = "inline-flex";
+  }
+
+  const bubble = bubbleEl.querySelector(".ai-streaming-text-bubble");
+  if (bubble) {
+    bubble.innerHTML = formatAIText(text);
+  }
+
+  if (suggestions && suggestions.length > 0) {
+    const suggestionsDiv = document.createElement("div");
+    suggestionsDiv.className = "suggestion-chips active-suggestions";
+    suggestionsDiv.style.marginTop = "8px";
+    suggestionsDiv.innerHTML = suggestions.map((s, idx) => `
+      <button class="chip dynamic-suggestion-chip" style="--chip-idx: ${idx};" data-prompt="${escapeHtml(s)}">${escapeHtml(s)}</button>
+    `).join("");
+    
+    bubble.parentNode.appendChild(suggestionsDiv);
+    
+    suggestionsDiv.querySelectorAll(".dynamic-suggestion-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        sendMessage(chip.dataset.prompt);
+      });
+    });
+  }
+
+  const meta = bubbleEl.querySelector(".ai-streaming-meta");
+  if (meta) {
+    meta.innerHTML = `${now()} · <span class="msg-speak-btn" title="Read message" style="cursor:pointer; opacity:0.6; transition:opacity 0.2s;">🔊 Speak</span>`;
+    meta.style.display = "block";
+    
+    const speakBtn = meta.querySelector(".msg-speak-btn");
+    if (speakBtn) {
+      speakBtn.addEventListener("click", () => {
+        speakText(text);
+      });
+      speakBtn.addEventListener("mouseenter", () => speakBtn.style.opacity = "1");
+      speakBtn.addEventListener("mouseleave", () => speakBtn.style.opacity = "0.6");
+    }
+  }
+  
+  scrollToBottom();
 }
 
 // ── Render messages ──────────────────────────────────────────────────────────
@@ -971,6 +1118,15 @@ function setCallState(state) {
   const card      = document.querySelector(".phone-card");
   const badgeText = document.getElementById("stateBadgeText");
   const badgeIcon = document.getElementById("stateBadgeIcon");
+  const listeningPop = document.getElementById("phoneListeningPop");
+
+  if (listeningPop) {
+    if (state === "LISTENING") {
+      listeningPop.classList.add("active");
+    } else {
+      listeningPop.classList.remove("active");
+    }
+  }
 
   if (!statusEl) return;
 
@@ -1030,79 +1186,456 @@ function setCallState(state) {
     if (badgeIcon) badgeIcon.innerHTML = micPaths;
   }
 }
+// ── Voice Filler System & Playback Helpers ─────────────────────────────────────
+async function loadFillerClips() {
+  if (fillerTrees.length) return;
+  try {
+    const res = await fetch('/api/fillers');
+    const data = await res.json();
+    fillerTrees = data.trees || [];
+    fillerThinking = data.thinking || [];
+    console.log(`[VoiceFillers] Loaded ${fillerTrees.length} trees and ${fillerThinking.length} thinking clips.`);
+  } catch (e) {
+    console.warn('[VoiceFillers] Could not load filler clips from server:', e);
+  }
+}
+
+function randomThinking() {
+  if (!fillerThinking.length) return null;
+  return fillerThinking[Math.floor(Math.random() * fillerThinking.length)];
+}
+
+function pickNextFillerClip() {
+  if (treeStep > 0 && Math.random() < 0.5) {
+    const t = randomThinking();
+    if (t) return t;
+  }
+  if (currentTree && treeStep < currentTree.length) {
+    return currentTree[treeStep++];
+  }
+  return randomThinking();
+}
+
+function randomGapMs() {
+  return FILLER_GAP_MIN_MS + Math.random() * (FILLER_GAP_MAX_MS - FILLER_GAP_MIN_MS);
+}
+
+function playPcmClip(base64, onended) {
+  if (!phoneAudioContext) {
+    if (onended) onended();
+    return null;
+  }
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+    
+    const audioBuffer = phoneAudioContext.createBuffer(1, float32.length, 24000);
+    audioBuffer.copyToChannel(float32, 0);
+    
+    const source = phoneAudioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(phoneAudioContext.destination);
+    source.onended = () => {
+      if (onended) onended();
+    };
+    source.start();
+    return source;
+  } catch (e) {
+    console.error("[VoiceFillers] Error playing filler PCM clip:", e);
+    if (onended) onended();
+    return null;
+  }
+}
+
+function speakFiller() {
+  if (!awaitingResponse) return; // response already started
+  const clip = pickNextFillerClip();
+  if (!clip) return;
+  fillerActive = true;
+  setCallState("SPEAKING");
+  
+  fillerSource = playPcmClip(clip, () => {
+    fillerSource = null;
+    fillerActive = false;
+    
+    if (playbackQueue.length > 0) {
+      // response arrived during filler
+      awaitingResponse = false;
+      while (playbackQueue.length > 0) {
+        const item = playbackQueue.shift();
+        feedPcmBase64(item);
+      }
+    } else if (awaitingResponse && !responseDone) {
+      setCallState("PROCESSING");
+      fillerTimer = setTimeout(() => {
+        if (awaitingResponse && playbackQueue.length === 0 && !responseDone) speakFiller();
+      }, randomGapMs());
+    } else {
+      cancelFillers();
+      if (responseDone && playbackQueue.length === 0) {
+        setCallState("LISTENING");
+      }
+    }
+  });
+}
+
+function startFillerCycle() {
+  cancelFillers();
+  awaitingResponse = true;
+  responseDone = false;
+  treeStep = 0;
+  currentTree = fillerTrees.length
+    ? fillerTrees[Math.floor(Math.random() * fillerTrees.length)]
+    : null;
+  fillerTimer = setTimeout(() => {
+    if (awaitingResponse && playbackQueue.length === 0) speakFiller();
+  }, FILLER_GRACE_MS);
+}
+
+function cancelFillers() {
+  awaitingResponse = false;
+  fillerActive = false;
+  if (fillerTimer) {
+    clearTimeout(fillerTimer);
+    fillerTimer = null;
+  }
+  if (fillerSource) {
+    try {
+      fillerSource.onended = null;
+      fillerSource.stop();
+    } catch (e) {}
+    fillerSource = null;
+  }
+}
+
+function queueAudio(base64Delta) {
+  if (fillerActive) {
+    playbackQueue.push(base64Delta);
+    return;
+  }
+  
+  if (awaitingResponse) {
+    awaitingResponse = false;
+    if (fillerTimer) {
+      clearTimeout(fillerTimer);
+      fillerTimer = null;
+    }
+  }
+  
+  // Drain queue if there are any items
+  while (playbackQueue.length > 0) {
+    const item = playbackQueue.shift();
+    feedPcmBase64(item);
+  }
+  
+  feedPcmBase64(base64Delta);
+}
+
+function feedPcmBase64(base64) {
+  if (pcmPlayer && isPhoneSpeakerActive && voiceMode === "server_audio") {
+    setCallState("SPEAKING");
+    isResponseFinished = false;
+    
+    try {
+      const binary = atob(base64);
+      const buffer = new ArrayBuffer(binary.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < binary.length; i++) {
+        view[i] = binary.charCodeAt(i);
+      }
+      pcmPlayer.feed(buffer);
+    } catch (e) {
+      console.error("[Voice] Error feeding PCM chunk:", e);
+    }
+  }
+}
 
 async function startPhoneCall() {
   if (isInCallMode) return;
+
+  // Clean up any legacy call resources to prevent memory leaks/duplicate event listeners
+  if (voiceSocket) {
+    console.log("[Voice] Cleaning up legacy WebSocket connection...");
+    try {
+      voiceSocket.onopen = null;
+      voiceSocket.onmessage = null;
+      voiceSocket.onclose = null;
+      voiceSocket.onerror = null;
+      voiceSocket.close();
+    } catch (e) {}
+    voiceSocket = null;
+  }
+  if (pcmPlayer) {
+    console.log("[Voice] Stopping legacy pcmPlayer...");
+    try {
+      pcmPlayer.stop();
+    } catch (e) {}
+    pcmPlayer = null;
+  }
+  if (phoneRecognition) {
+    console.log("[Voice] Aborting legacy SpeechRecognition...");
+    try {
+      phoneRecognition.abort();
+    } catch (e) {}
+    phoneRecognition = null;
+  }
+
   isInCallMode = true;
   isPhoneMuted = false;
+  voiceMode = "server_audio"; // Reset to default mode on start
+  isResponseFinished = false; // Reset response finished state
+  userTranscriptText = ""; // Clear transcript text
+  awaitingResponse = false;
+  fillerActive = false;
+  responseDone = false;
+  playbackQueue = [];
+  playing = false;
 
-  // Clean up any standard voice recording
+  // Pre-load filler audio clips from server
+  loadFillerClips();
+
+  // Resume or create AudioContext inside user-gesture event handler with 24kHz sample rate natively
+  try {
+    if (!phoneAudioContext) {
+      phoneAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    }
+    if (phoneAudioContext.state === "suspended") {
+      await phoneAudioContext.resume();
+    }
+    console.log("[Voice] AudioContext initialized/resumed at 24kHz. State:", phoneAudioContext.state);
+  } catch (audioInitErr) {
+    console.warn("[Voice] Failed to initialize AudioContext synchronously:", audioInitErr);
+  }
+
   if (isRecording) {
     stopRecording(false);
   }
 
-  // Clear chat input, hide any banner/toast
   chatInput.value = "";
   hideError();
 
-  // Reset mute button UI
   const muteBtn = document.getElementById("phoneMuteBtn");
   if (muteBtn) {
     muteBtn.classList.remove("muted");
   }
 
-  // Show Overlay — hide chat/account panels first so overlay fills the space
+  // Show Overlay
   const chatPanelEl = document.getElementById("chatPanel");
   const accountPanelEl = document.getElementById("accountPanel");
   if (chatPanelEl) chatPanelEl.style.display = 'none';
   if (accountPanelEl) accountPanelEl.style.display = 'none';
   document.getElementById("phoneCallOverlay").classList.add("active");
-  document.getElementById("phoneTranscript").textContent = "Waiting for speech...";
+  document.getElementById("phoneTranscript").textContent = "Connecting to voice service...";
   const phoneAIEl = document.getElementById("phoneAIResponse");
-  if (phoneAIEl) phoneAIEl.textContent = "Connecting...";
+  if (phoneAIEl) phoneAIEl.textContent = "Connecting to real-time voice endpoint...";
+  
   setCallState("GREETING");
 
-  // Load name if customer is loaded
-  const firstName = customer && customer.name ? customer.name.split(" ")[0] : "Jamie";
-  const greetingText = `Hello ${firstName}, how can I help you today?`;
-  if (phoneAIEl) phoneAIEl.textContent = greetingText;
+  // Timeout if WebSocket doesn't connect within 3s
+  let connectionTimeout = setTimeout(() => {
+    if (voiceSocket && voiceSocket.readyState !== WebSocket.OPEN) {
+      console.warn("[Voice] WebSocket connection timed out. Falling back to native HTTP voice mode.");
+      showToast("⚠️ Server voice connection timeout. Using local browser fallback.");
+      switchToNativeHttpMode();
+    }
+  }, 3000);
 
-  // Visual addition to chat panel
-  appendAIMessage(greetingText, "general");
-  conversationHistory.push({ role: "assistant", content: greetingText });
+  try {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    voiceSocket = new WebSocket(`${protocol}//${host}/api/voice-realtime`);
 
-  // Speak greeting
-  speakPhoneCallText(greetingText);
+    voiceSocket.onopen = async () => {
+      clearTimeout(connectionTimeout);
+      console.log("[Voice] WebSocket connected. Initializing audio capture...");
+      document.getElementById("phoneTranscript").textContent = "Establishing voice channel...";
+      await initVoiceAudio();
+      document.getElementById("phoneTranscript").textContent = "Say something! I am listening...";
+      if (phoneAIEl) phoneAIEl.textContent = "Listening...";
+      setCallState("LISTENING");
+    };
+
+    voiceSocket.onmessage = async (event) => {
+      if (typeof event.data === "string") {
+        try {
+          const msg = JSON.parse(event.data);
+          
+          if (msg.type === "audio_delta" && msg.delta) {
+            queueAudio(msg.delta);
+          }
+          else if (msg.type === "speech_started") {
+            console.log("[Voice] Upstream speech started (barge-in). Stopping playback.");
+            cancelFillers();
+            playbackQueue = [];
+            if (pcmPlayer) pcmPlayer.stop();
+            window.speechSynthesis.cancel();
+            document.getElementById("phoneTranscript").textContent = "Listening...";
+            setCallState("LISTENING");
+          }
+          else if (msg.type === "speech_stopped") {
+            console.log("[Voice] Upstream speech stopped. Start filler timer.");
+            document.getElementById("phoneTranscript").textContent = "Processing...";
+            setCallState("PROCESSING");
+            startFillerCycle();
+          }
+          else if (msg.type === "audio_done") {
+            console.log("[Voice] Upstream audio response complete.");
+            responseDone = true;
+            if (!playing && !fillerActive && playbackQueue.length === 0) {
+              cancelFillers();
+              setCallState("LISTENING");
+            }
+          }
+          else if (msg.type === "user_transcript_delta") {
+            const transEl = document.getElementById("phoneTranscript");
+            if (transEl) {
+              if (userTranscriptText === "") {
+                transEl.textContent = "";
+              }
+              userTranscriptText += msg.delta;
+              transEl.textContent = userTranscriptText;
+            }
+          }
+          else if (msg.type === "user_transcript") {
+            const transEl = document.getElementById("phoneTranscript");
+            if (transEl) {
+              transEl.textContent = msg.text;
+            }
+            userTranscriptText = "";
+            appendUserMessage(msg.text);
+          }
+          else if (msg.type === "agent_transcript") {
+            console.log("[Voice] Received agent final transcript:", msg.text);
+            appendAIMessage(msg.text, "specialist", ["Track my order", "Find nearest store", "Check product stock"]);
+            conversationHistory.push({ role: "assistant", content: msg.text });
+            fetchCustomerData();
+            
+            const phoneAIEl = document.getElementById("phoneAIResponse");
+            if (phoneAIEl) phoneAIEl.textContent = msg.text;
+          }
+          else if (msg.type === "error") {
+            console.error("VoiceLive error:", msg.message);
+            document.getElementById("phoneTranscript").textContent = "Error: " + msg.message;
+          }
+        } catch (e) {
+          console.error("Error parsing WebSocket message:", e);
+        }
+      }
+    };
+
+    voiceSocket.onclose = () => {
+      console.log("[Voice] WebSocket closed.");
+      clearTimeout(connectionTimeout);
+      cancelFillers();
+      if (isInCallMode) {
+        if (voiceMode === "server_audio" || voiceMode === "native_ws") {
+          switchToNativeHttpMode();
+        } else {
+          endPhoneCall();
+        }
+      }
+    };
+
+    voiceSocket.onerror = (err) => {
+      console.error("[Voice] WebSocket error:", err);
+      clearTimeout(connectionTimeout);
+      cancelFillers();
+      if (isInCallMode) {
+        showToast("⚠️ Server voice connection failed. Using local browser fallback.");
+        switchToNativeHttpMode();
+      }
+    };
+
+  } catch (ex) {
+    console.error("Failed to start phone call:", ex);
+    clearTimeout(connectionTimeout);
+    cancelFillers();
+    switchToNativeHttpMode();
+  }
+}
+
+function switchToNativeHttpMode() {
+  if (!isInCallMode) return;
+  
+  cancelFillers();
+  console.log("[Voice] Switching to native HTTP fallback mode.");
+  voiceMode = "native_http";
+  
+  if (pcmPlayer) {
+    try {
+      pcmPlayer.stop();
+    } catch (e) {}
+    pcmPlayer = null;
+  }
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+
+  if (voiceSocket) {
+    try {
+      voiceSocket.close();
+    } catch(e) {}
+    voiceSocket = null;
+  }
+  
+  document.getElementById("phoneTranscript").textContent = "Local voice mode active. I am listening...";
+  const phoneAIEl = document.getElementById("phoneAIResponse");
+  if (phoneAIEl) phoneAIEl.textContent = "Listening (Local browser mode)...";
+  
+  setCallState("LISTENING");
+  startListeningForCall();
 }
 
 function endPhoneCall() {
   if (!isInCallMode) return;
   isInCallMode = false;
 
-  // Cancel Speech
+  cancelFillers();
+  playbackQueue = [];
+  playing = false;
+  awaitingResponse = false;
+  fillerActive = false;
+  responseDone = false;
+
+  if (voiceSocket) {
+    try {
+      voiceSocket.close();
+    } catch(e) {}
+    voiceSocket = null;
+  }
+
+  if (pcmPlayer) {
+    pcmPlayer.stop();
+    pcmPlayer = null;
+  }
+
+  if (phoneScriptProcessor) {
+    phoneScriptProcessor.disconnect();
+    phoneScriptProcessor = null;
+  }
+  if (phoneMicSource) {
+    phoneMicSource.disconnect();
+    phoneMicSource = null;
+  }
+  if (phoneMicStream) {
+    phoneMicStream.getTracks().forEach(track => track.stop());
+    phoneMicStream = null;
+  }
+  if (phoneAudioContext) {
+    phoneAudioContext.close();
+    phoneAudioContext = null;
+  }
+
+  // Cancel any browser-native speech playing
   window.speechSynthesis.cancel();
-  currentUtterance = null;
 
-  if (currentAudioElement) {
-    currentAudioElement.pause();
-    currentAudioElement = null;
-  }
-
-  // Stop Listening / Recording
-  if (phoneRecognition) {
-    phoneRecognition.onend = null;
-    phoneRecognition.onerror = null;
-    phoneRecognition.stop();
-    phoneRecognition = null;
-  }
-  stopPhoneCallRecordingFallback();
-
-  if (phoneSilenceTimer) {
-    clearTimeout(phoneSilenceTimer);
-    phoneSilenceTimer = null;
-  }
-
-  // Hide Overlay — restore chat panel
   document.getElementById("phoneCallOverlay").classList.remove("active");
   const chatPanelEl = document.getElementById("chatPanel");
   if (chatPanelEl) chatPanelEl.style.display = 'flex';
@@ -1125,21 +1658,12 @@ function togglePhoneMute() {
     }
     showToast("🎙️ Microphone Muted");
     setCallState("MUTED");
-    
-    // Stop recognition/recording
-    if (phoneRecognition) {
-      phoneRecognition.onend = null;
-      phoneRecognition.stop();
-    }
-    stopPhoneCallRecordingFallback();
   } else {
     if (muteBtn) {
       muteBtn.classList.remove("muted");
     }
     showToast("🎙️ Microphone Active");
-    
-    // Restart listening
-    startListeningForCall();
+    setCallState("LISTENING");
   }
 }
 
@@ -1160,15 +1684,8 @@ function togglePhoneSpeaker() {
       speakerBtn.classList.add("off");
     }
     showToast("🔇 Speaker Off");
-    window.speechSynthesis.cancel();
-    if (currentAudioElement) {
-      currentAudioElement.pause();
-      currentAudioElement = null;
-    }
-    
-    // If AI was speaking, transition directly to listening now
-    if (callState === "SPEAKING" || callState === "GREETING") {
-      startListeningForCall();
+    if (pcmPlayer) {
+      pcmPlayer.stop();
     }
   }
 }
@@ -1442,17 +1959,17 @@ function startListeningForCall() {
 }
 
 // Override turn submit for fallback method when silence fires
-// If we are in fallback mode and not native recognition
 function submitPhoneCallTurn() {
-  if (phoneRecognition) {
-    submitPhoneCallTurnNative();
-  } else {
-    submitPhoneCallTurnFallback();
-  }
+  submitPhoneCallTurnNative();
 }
 
 async function submitPhoneCallTurnNative() {
   if (!isInCallMode || isPhoneMuted) return;
+
+  if (voiceMode === "server_audio") {
+    console.log("[Voice] submitPhoneCallTurn ignored in server_audio mode. Upstream audio handling is active.");
+    return;
+  }
 
   const text = phoneCurrentTurnTranscript.trim();
 
@@ -1478,6 +1995,13 @@ async function submitPhoneCallTurnNative() {
   appendUserMessage(text);
   conversationHistory.push({ role: "user", content: text });
 
+  if (voiceMode === "native_ws" && voiceSocket && voiceSocket.readyState === WebSocket.OPEN) {
+    console.log("[Voice] Sending native transcript via WebSocket text channel:", text);
+    voiceSocket.send(JSON.stringify({ type: "voice_query", text: text }));
+    return;
+  }
+
+  // HTTP POST Fallback (Tier 3)
   try {
     const response = await fetch(`${API_BASE}/chat/voice`, {
       method: "POST",
@@ -1530,186 +2054,114 @@ let phoneMicStream = null;
 let phoneRecordBuffer = [];
 let silenceCheckInterval = null;
 
-async function startPhoneCallRecordingFallback() {
+class PCMPlayer {
+  constructor(audioContext, sampleRate = 16000) {
+    this.audioContext = audioContext;
+    this.sampleRate = sampleRate;
+    this.queue = [];
+    this.startTime = 0;
+    this.onEnded = null;
+  }
+  
+  feed(pcmBuffer) {
+    const int16Array = new Int16Array(pcmBuffer);
+    const float32Array = new Float32Array(int16Array.length);
+    for (let i = 0; i < int16Array.length; i++) {
+      float32Array[i] = int16Array[i] / 32768;
+    }
+    
+    const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, this.sampleRate);
+    audioBuffer.copyToChannel(float32Array, 0);
+    
+    const source = this.audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(this.audioContext.destination);
+    
+    let playTime = this.startTime;
+    const now = this.audioContext.currentTime;
+    if (playTime < now) {
+      playTime = now + 0.03; // 30ms safety buffer
+    }
+    
+    source.start(playTime);
+    this.startTime = playTime + audioBuffer.duration;
+    this.queue.push(source);
+    
+    source.onended = () => {
+      const idx = this.queue.indexOf(source);
+      if (idx !== -1) {
+        this.queue.splice(idx, 1);
+      }
+      if (this.queue.length === 0 && this.onEnded) {
+        this.onEnded();
+      }
+    };
+  }
+  
+  stop() {
+    this.queue.forEach(source => {
+      try {
+        source.stop();
+      } catch (e) {}
+    });
+    this.queue = [];
+    this.startTime = 0;
+  }
+}
+
+async function initVoiceAudio() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     phoneMicStream = stream;
 
-    phoneAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (!phoneAudioContext) {
+      phoneAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    }
+    if (phoneAudioContext.state === "suspended") {
+      await phoneAudioContext.resume();
+    }
     phoneMicSource = phoneAudioContext.createMediaStreamSource(stream);
 
-    const analyser = phoneAudioContext.createAnalyser();
-    analyser.fftSize = 512;
-    phoneMicSource.connect(analyser);
+    pcmPlayer = new PCMPlayer(phoneAudioContext, 24000);
+    pcmPlayer.onEnded = () => {
+      if (responseDone && isInCallMode && !awaitingResponse && !fillerActive) {
+        console.log("[Voice] Playback queue empty and response done. Transitioning back to LISTENING.");
+        setCallState("LISTENING");
+      }
+    };
 
     phoneScriptProcessor = phoneAudioContext.createScriptProcessor(4096, 1, 1);
-    phoneRecordBuffer = [];
-    phoneHasDetectedSpeechFallback = false;
-
+    
     phoneScriptProcessor.onaudioprocess = (e) => {
       if (!isInCallMode || isPhoneMuted) return;
       const channelData = e.inputBuffer.getChannelData(0);
-      phoneRecordBuffer.push(new Float32Array(channelData));
+      const pcm16 = floatTo16BitPCM(channelData);
+      
+      if (voiceSocket && voiceSocket.readyState === WebSocket.OPEN) {
+        voiceSocket.send(pcm16.buffer);
+      }
     };
 
+    const dummyGain = phoneAudioContext.createGain();
+    dummyGain.gain.value = 0.0;
     phoneMicSource.connect(phoneScriptProcessor);
-    phoneScriptProcessor.connect(phoneAudioContext.destination);
-
-    resetPhoneSilenceTimer();
-
-    const bufferLength = analyser.fftSize;
-    const dataArray = new Uint8Array(bufferLength);
-    let consecutiveSpeechFrames = 0;
-
-    silenceCheckInterval = requestAnimationFrame(function checkSilence() {
-      if (!isInCallMode || isPhoneMuted || phoneRecognition) return;
-
-      analyser.getByteTimeDomainData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        const floatVal = (dataArray[i] - 128) / 128;
-        sum += floatVal * floatVal;
-      }
-      const rms = Math.sqrt(sum / bufferLength);
-
-      if (rms >= SILENCE_THRESHOLD) {
-        // Sound detected
-        if (callState === "LISTENING") {
-          phoneHasDetectedSpeechFallback = true;
-          resetPhoneSilenceTimer();
-        } else if (callState === "SPEAKING" || callState === "GREETING") {
-          // Barge-in check: user speaks over speaker
-          consecutiveSpeechFrames++;
-          if (consecutiveSpeechFrames >= 3) {
-            console.log("[CallMode Fallback] User speaking detected. stopping speech...");
-            window.speechSynthesis.cancel();
-            currentUtterance = null;
-            
-            if (currentAudioElement) {
-              currentAudioElement.pause();
-              currentAudioElement = null;
-            }
-            
-            phoneRecordBuffer = []; // Clear buffer to start fresh recording
-            setCallState("LISTENING");
-            consecutiveSpeechFrames = 0;
-            resetPhoneSilenceTimer();
-          }
-        }
-      } else {
-        consecutiveSpeechFrames = 0;
-      }
-
-      silenceCheckInterval = requestAnimationFrame(checkSilence);
-    });
-
+    phoneScriptProcessor.connect(dummyGain);
+    dummyGain.connect(phoneAudioContext.destination);
+    
+    console.log("[Voice] Audio capture and player initialized at 24kHz natively.");
   } catch (err) {
-    console.error("Fallback recording failed:", err);
-    showError("Could not start microphone recording fallback.");
+    console.error("Failed to initialize audio:", err);
+    showError("Microphone access is required for call mode.");
   }
 }
 
-function stopPhoneCallRecordingFallback() {
-  if (silenceCheckInterval) {
-    cancelAnimationFrame(silenceCheckInterval);
-    silenceCheckInterval = null;
+function floatTo16BitPCM(float32Array) {
+  const out = new Int16Array(float32Array.length);
+  for (let i = 0; i < float32Array.length; i++) {
+    let s = Math.max(-1, Math.min(1, float32Array[i]));
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
   }
-  if (phoneScriptProcessor) {
-    phoneScriptProcessor.disconnect();
-    phoneScriptProcessor = null;
-  }
-  if (phoneMicSource) {
-    phoneMicSource.disconnect();
-    phoneMicSource = null;
-  }
-  if (phoneAudioContext) {
-    phoneAudioContext.close();
-    phoneAudioContext = null;
-  }
-  if (phoneMicStream) {
-    phoneMicStream.getTracks().forEach(t => t.stop());
-    phoneMicStream = null;
-  }
-}
-
-async function submitPhoneCallTurnFallback() {
-  if (!phoneHasDetectedSpeechFallback || phoneRecordBuffer.length === 0) {
-    // No speech detected during fallback, reset buffers/timer and keep recording
-    phoneRecordBuffer = [];
-    phoneHasDetectedSpeechFallback = false;
-    resetPhoneSilenceTimer();
-    return;
-  }
-
-  // Merge float buffers
-  let totalLength = 0;
-  for (let i = 0; i < phoneRecordBuffer.length; i++) {
-    totalLength += phoneRecordBuffer[i].length;
-  }
-  const mergedSamples = mergeBuffers(phoneRecordBuffer, totalLength);
-
-  const sampleRate = phoneAudioContext ? phoneAudioContext.sampleRate : 44100;
-  const targetSampleRate = 16000;
-  const downsampledSamples = downsampleBuffer(mergedSamples, sampleRate, targetSampleRate);
-
-  const blob = encodeWAV(downsampledSamples, targetSampleRate);
-  const formData = new FormData();
-  formData.append("audio", blob, "voice.wav");
-
-  const transcriptPreview = document.getElementById("phoneTranscript");
-  // Don't overwrite the previous text yet, wait until we verify if transcript is non-empty
-  setCallState("PROCESSING");
-
-  try {
-    const res = await fetch(`${API_BASE}/voice/transcribe`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) throw new Error(`Transcription failed (${res.status})`);
-
-    const { transcript } = await res.json();
-    const text = (transcript || "").trim();
-
-    if (text) {
-      if (transcriptPreview) {
-        transcriptPreview.textContent = text;
-      }
-      appendUserMessage(text);
-      conversationHistory.push({ role: "user", content: text });
-
-      const response = await fetch(`${API_BASE}/chat/voice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          conversation_history: conversationHistory.slice(-20),
-        }),
-      });
-
-      if (!response.ok) throw new Error("Chat call failed");
-      const data = await response.json();
-      appendAIMessage(data.reply, data.intent, data.suggestions);
-      conversationHistory.push({ role: "assistant", content: data.reply });
-      fetchCustomerData();
-
-      const phoneAIEl = document.getElementById("phoneAIResponse");
-      if (phoneAIEl) phoneAIEl.textContent = data.reply;
-
-      if (isPhoneSpeakerActive) {
-        speakPhoneCallText(data.reply);
-      } else {
-        startListeningForCall();
-      }
-    } else {
-      startListeningForCall();
-    }
-  } catch (err) {
-    console.error("Fallback turn submission failed:", err);
-    const phoneAIEl = document.getElementById("phoneAIResponse");
-    if (phoneAIEl) phoneAIEl.textContent = "I encountered an error. Please try again.";
-    startListeningForCall();
-  }
+  return out;
 }
 
 // Preload voices as early as possible so they are immediately available on speech request

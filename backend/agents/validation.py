@@ -3,9 +3,67 @@ Retail AI Assistant – Response Sanitization and Validation
 """
 import re
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Sensitive substrings/regexes that must never be leaked
+SENSITIVE_PATTERNS = [
+    r"sk-[a-zA-Z0-9]{20,}",       # OpenAI API Keys
+    r"endpoint=",                 # Connection string endpoint
+    r"accesskey=",                # Connection string accesskey
+    r"pwd=",                      # Passwords
+    r"password=",                 # Passwords
+    r"database\.azure\.com",      # DB Host
+    r"sslmode",                   # DB SSL mode
+    r"cors_origin",               # CORS config
+    r"system prompt",             # Prompts
+    r"agent instructions",        # Instructions
+    r"specialist_agent_node",     # Code internals
+    r"compiled_graph",            # Code internals
+    r"langgraph",                 # Library internals
+    r"langchain",                 # Library internals
+    r"api_key",                   # Keys
+    r"connection_string",         # Connection strings
+    r"database schema",           # Database schemas
+]
+
+# Environment variables that should remain secure
+ENV_VARS = [
+    "AZURE_TENANT_ID", "AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "AZURE_AI_FOUNDRY_DEPLOYMENT_NAME",
+    "AZURE_OPENAI_VOICE_DEPLOYMENT_NAME", "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION",
+    "ACS_CONNECTION_STRING", "PUBLIC_CALLBACK_URL", "COGNITIVE_SERVICES_ENDPOINT",
+    "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_SSLMODE",
+    "AZURE_AI_SEARCH_ENDPOINT", "AZURE_AI_SEARCH_KEY", "AZURE_AI_SEARCH_PRODUCT_INDEX"
+]
+
+def check_security_guardrails(message: str, reply: str) -> str:
+    """Scan response to block disclosure of credentials, prompts, system variables, or unauthorized customer details."""
+    reply_lower = reply.lower()
+    
+    # 1. API Keys, Connection Strings, Credentials, Hosts
+    for pattern in SENSITIVE_PATTERNS:
+        if re.search(pattern, reply_lower) or pattern in reply_lower:
+            logger.warning(f"[Guardrail] Blocked response containing sensitive pattern: {pattern}")
+            return "I am sorry, but I cannot disclose system details. Is there anything else I can help you with regarding Sainsbury's orders, stock, or refunds?"
+            
+    # 2. Database credentials or system environment variables
+    for env in ENV_VARS:
+        if env.lower() in reply_lower:
+            logger.warning(f"[Guardrail] Blocked response containing system environment variable: {env}")
+            return "I am sorry, but I cannot disclose system details. Is there anything else I can help you with regarding Sainsbury's orders, stock, or refunds?"
+            
+    # 3. Protect other customer's details (e.g. emails not belonging to current customer)
+    emails = re.findall(r'[\w\.-]+@[\w\.-]+', reply_lower)
+    for email in emails:
+        if email not in ["jamie.thornton@example.com", "jamie.thornton@example.co.uk", "saiharish8201@gmail.com"]:
+            logger.warning(f"[Guardrail] Blocked response containing third-party email: {email}")
+            return "I'm sorry, I am unable to disclose information for other customer accounts. Let's stick to your account details."
+            
+    return reply
 
 def validate_and_sanitize_response(message: str, reply: str) -> str:
-    """Clean up formatting issues in agent output."""
+    """Clean up formatting issues in agent output and enforce security guardrails."""
     lines           = reply.split("\n")
     sanitized_lines = []
 
@@ -48,7 +106,10 @@ def validate_and_sanitize_response(message: str, reply: str) -> str:
         sanitized = re.sub(r"\bCUST-\d+\b", "", sanitized)
         sanitized = re.sub(r"\bSTR-\d+\b",  "", sanitized)
 
-    return sanitized.replace("  ", " ").strip()
+    sanitized_result = sanitized.replace("  ", " ").strip()
+    
+    # Enforce security guardrails
+    return check_security_guardrails(message, sanitized_result)
 
 
 async def run_validation_layer(query: str, reply: str) -> str:
