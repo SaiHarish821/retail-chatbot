@@ -78,13 +78,31 @@ class AgentRouter:
         self._init_clients()
         self._fetch_instructions()
 
+    def _get_credential(self):
+        from azure.identity import AzureCliCredential, ClientSecretCredential
+        tenant_id = os.getenv("AZURE_TENANT_ID", "").strip() or None
+        client_id = os.getenv("AZURE_CLIENT_ID", "").strip() or None
+        client_secret = os.getenv("AZURE_CLIENT_SECRET", "").strip() or None
+        
+        if client_id and client_secret and tenant_id:
+            logger.info("[AgentRouter] Using ClientSecretCredential for authentication")
+            return ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret
+            )
+        else:
+            logger.info(f"[AgentRouter] Using AzureCliCredential for authentication (tenant_id={tenant_id})")
+            return AzureCliCredential(tenant_id=tenant_id) if tenant_id else AzureCliCredential()
+
     def _init_clients(self) -> None:
         project_endpoint = os.getenv("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "").strip()
-        tenant_id        = os.getenv("AZURE_TENANT_ID", "").strip() or None
+        api_key          = os.getenv("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+        openai_endpoint  = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
 
         if project_endpoint:
             try:
-                credential = AzureCliCredential(tenant_id=tenant_id)
+                credential = self._get_credential()
                 self._project_client = AIProjectClient(
                     endpoint=project_endpoint,
                     credential=credential,
@@ -93,6 +111,19 @@ class AgentRouter:
                 logger.info("[AgentRouter] AIProjectClient and OpenAI client initialised successfully.")
             except Exception as e:
                 logger.error(f"[AgentRouter] Initialization failed: {e}")
+
+        # Fallback to direct AzureOpenAI client if key and endpoint are provided and project client failed
+        if not self._openai_client and api_key and openai_endpoint:
+            try:
+                from openai import AzureOpenAI
+                self._openai_client = AzureOpenAI(
+                    azure_endpoint=openai_endpoint,
+                    api_key=api_key,
+                    api_version="2024-06-01"
+                )
+                logger.info("[AgentRouter] Direct AzureOpenAI client initialized using API key fallback.")
+            except Exception as e:
+                logger.error(f"[AgentRouter] Direct AzureOpenAI client initialization failed: {e}")
 
     def _fetch_instructions(self) -> None:
         if not self._project_client:
@@ -239,19 +270,42 @@ class AgentRouter:
         return "new_retail"
 
     def _get_llm(self) -> ChatOpenAI:
-        """Helper to retrieve or initialize the cached LangChain ChatOpenAI instance using Entra tokens."""
+        """Helper to retrieve or initialize the cached LangChain ChatOpenAI instance using Entra tokens or API Key fallback."""
         import time
         now = time.time()
+
+        # Derive OpenAI inference endpoint if not explicitly provided
+        project_endpoint = os.getenv("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "").strip()
+        openai_endpoint  = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
+        if not openai_endpoint and project_endpoint:
+            openai_endpoint = f"{project_endpoint.rstrip('/')}/inference/v1"
+
+        api_key = os.getenv("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+
+        # Direct key-based authentication fallback
+        if api_key and openai_endpoint:
+            if not self._llm_instance:
+                logger.info("[AgentRouter] Initializing ChatOpenAI directly using API key and endpoint fallback...")
+                llm_kwargs = {
+                    "openai_api_base": openai_endpoint,
+                    "openai_api_key": api_key,
+                    "model": os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-5.1"),
+                }
+                if "mini" not in llm_kwargs["model"].lower() and "o1" not in llm_kwargs["model"].lower():
+                    llm_kwargs["temperature"] = 0.0
+                self._llm_instance = ChatOpenAI(**llm_kwargs)
+            return self._llm_instance
+
+        # Token-based authentication
         if not self._llm_instance or not self._cached_token or self._token_expires_on - now < 300:
             logger.info("[AgentRouter] Re-authenticating and refreshing Entra ID token...")
-            tenant_id = os.getenv("AZURE_TENANT_ID", "").strip() or None
-            cred = AzureCliCredential(tenant_id=tenant_id)
+            cred = self._get_credential()
             token_obj = cred.get_token("https://ai.azure.com/.default")
             self._cached_token = token_obj.token
             self._token_expires_on = token_obj.expires_on
             
             llm_kwargs = {
-                "openai_api_base": str(self._openai_client.base_url),
+                "openai_api_base": str(self._openai_client.base_url) if self._openai_client else openai_endpoint,
                 "openai_api_key": self._cached_token,
                 "model": os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT_NAME", "gpt-5.1"),
             }
