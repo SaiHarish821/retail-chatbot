@@ -2,6 +2,7 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.1
 python-dotenv==1.0.1
 azure-ai-agents==1.1.0
+azure-ai-projects
 azure-ai-voicelive[aiohttp]
 azure-core
 azure-identity==1.19.0
