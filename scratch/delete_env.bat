@@ -1,0 +1,13 @@
+@echo off
+echo Deleting environment variables from Vercel project...
+
+set vars=TEST_VAR_123 COGNITIVE_SERVICES_ENDPOINT PUBLIC_CALLBACK_URL ACS_CONNECTION_STRING CORS_ORIGIN AZURE_SPEECH_REGION AZURE_SPEECH_KEY AZURE_AGENT_GENERAL_NAME AZURE_AGENT_SUPERVISOR_NAME AZURE_AGENT_STORE_NAME AZURE_AGENT_DELIVERY_NAME AZURE_AGENT_REFUND_NAME AZURE_AGENT_ORDER_NAME AZURE_AI_FOUNDRY_DEPLOYMENT_NAME AZURE_OPENAI_ENDPOINT AZURE_AI_FOUNDRY_PROJECT_ENDPOINT AZURE_TENANT_ID AZURE_AI_FOUNDRY_API_KEY
+
+for %%v in (%vars%) do (
+    echo Removing %%v...
+    call vercel env rm %%v production -y > NUL 2>&1
+    call vercel env rm %%v preview -y > NUL 2>&1
+    call vercel env rm %%v development -y > NUL 2>&1
+)
+
+echo Deletion complete!

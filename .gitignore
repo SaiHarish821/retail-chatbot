@@ -91,3 +91,6 @@ yarn.lock
 secrets/
 credentials.json
 .vercel
+
+# Scratch environment variables
+scratch/sync_env.bat
