@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 def get_azure_credential():
     """Resolve Azure credential for Voice Live authentication.
     
-    Uses ClientSecretCredential for deployed environments (Render/Railway)
+    Uses AzureKeyCredential if api key is provided, ClientSecretCredential for deployed environments (Render/Railway)
     and falls back to AzureCliCredential for local dev (az login).
     """
+    api_key = os.getenv("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+    if api_key:
+        from azure.core.credentials import AzureKeyCredential
+        logger.info("[VoiceRealtime] Using AzureKeyCredential (API Key) for Voice Live authentication")
+        return AzureKeyCredential(api_key)
+
     from azure.identity import AzureCliCredential, ClientSecretCredential
     tenant_id = os.getenv("AZURE_TENANT_ID", "").strip() or None
     client_id = os.getenv("AZURE_CLIENT_ID", "").strip() or None

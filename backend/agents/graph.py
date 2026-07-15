@@ -296,7 +296,8 @@ async def _specialist_agent_node_impl(state: AgentState, config: RunnableConfig)
     # Run fully asynchronously
     invoke_kwargs = {}
     if state.get("is_voice"):
-        invoke_kwargs["max_completion_tokens"] = 80
+        # Allow sufficient tokens for reasoning models (e.g. gpt-5-mini) to complete their thinking phase
+        invoke_kwargs["max_completion_tokens"] = 1024
 
     if stream_queue:
         # Stream response chunks natively
