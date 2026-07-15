@@ -5,7 +5,7 @@
       "destination": "/frontend/$1"
     },
     {
-      "source": "/(customer|inventory|chat|api/save_results|voice/transcribe|health)",
+      "source": "/(customer|inventory|chat|chat/voice|voice/transcribe|voice/speak|health|api/.*)",
       "destination": "/api/index"
     },
     {

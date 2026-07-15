@@ -278,7 +278,7 @@ class AgentRouter:
         project_endpoint = os.getenv("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", "").strip()
         openai_endpoint  = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
         if not openai_endpoint and project_endpoint:
-            openai_endpoint = f"{project_endpoint.rstrip('/')}/inference/v1"
+            openai_endpoint = f"{project_endpoint.rstrip('/')}/openai/v1"
 
         api_key = os.getenv("AZURE_AI_FOUNDRY_API_KEY", "").strip()
 
